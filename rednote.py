@@ -103,7 +103,7 @@ TOOLS_DEFINITION = [
     }
 ]
 
-# 模拟工具实现 (TODO 后续改成真实调用web)
+# 模拟工具实现 (TODO 后续改成真实调用web具体接口传参 接收响应)
 def mock_search_web_result(query:str) -> str:
     print("===============模拟调用web===============")
     if "小红书美妆趋势" in query:
