@@ -1,0 +1,20 @@
+.DS_Store
+
+# Python cache and local tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Local virtual environments
+.venv/
+venv/
+env/
+venv-rag-llamindex-01/
+
+# IDE metadata
+.idea/
+.vscode/
+
+# Local app/runtime config
+.chainlit/
