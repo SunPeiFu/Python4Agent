@@ -57,5 +57,6 @@ query_engine = index.as_query_engine()
 
 response = query_engine.query("孙悟空使用什么武器")
 
+
 print("模型返回的最终答案:",response)
 
