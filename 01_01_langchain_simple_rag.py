@@ -24,7 +24,7 @@ all_documents = text_spliter.split_documents(document)
 #  HuggingFaceEmbeddings(BaseModel, Embeddings)中后面括号两个 代表实现两个接口
 embeddings = HuggingFaceEmbeddings(
     model_name = "BAAI/bge-small-zh-v1.5", 
-    model_kwargs={'device': 'cpu'}, # qa ->  model_kwargs此处指代什么 一个可变参数的字典
+    model_kwargs={'device': 'cpu'}, # qa ->  model_kwargs此处指代什么 一个可变参数的字典 注意它会转成字典
     encode_kwargs={'normalize_embeddings': True}
     )
 
@@ -52,6 +52,8 @@ templte  = """
 #prompt = ChatPromptTemplate.from_template(template = templte, question = question, context = docs_content)
 prompt = ChatPromptTemplate.from_template(templte)
 # qa ->  format方法中的 **kwargs 代表什么 **kwargs代表各边参数 可以是任意
+# kw -> keywords 代表关键字参数 
+# args -> arguments 位置参数
 final_prompt = prompt.format(
     question=question,
     context=docs_content
