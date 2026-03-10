@@ -1,0 +1,14 @@
+langchain==0.2.14
+langchain-community==0.2.12
+langchain-core==0.2.43
+langchain-text-splitters==0.2.4
+langsmith==0.1.147
+sentence-transformers==2.7.0
+faiss-cpu==1.8.0
+numpy
+pandas
+requests
+python-dotenv
+dashscope
+transformers
+torch

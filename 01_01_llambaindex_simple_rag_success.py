@@ -15,16 +15,15 @@ from llama_index.llms.dashscope import DashScope
 #     api_base="https://dashscope.aliyuncs.com/compatible-mode/v1",
 # )
 
-# 这个是Qwen的官方Sdk
+# 1 配置模型 这个是Qwen的官方Sdk
 Settings.llm = DashScope(
     model_name="qwen-turbo",
     api_key=os.environ["DASHSCOPE_API_KEY"],
 )
 
 # ======================
-# 2 本地 embedding 模型
+# 2 配置 embedding 
 # ======================
-
 Settings.embed_model = HuggingFaceEmbedding(
     model_name="BAAI/bge-small-zh"
 )
@@ -32,7 +31,7 @@ Settings.embed_model = HuggingFaceEmbedding(
 print("LLM的配置是----------->:", Settings.llm)
 
 # ======================
-# 3 读取文档
+# 3 加载文档
 # ======================
 
 documents = SimpleDirectoryReader(
