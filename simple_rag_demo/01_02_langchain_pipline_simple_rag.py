@@ -10,11 +10,21 @@ from langchain_community.chat_models import ChatTongyi
 
 
 # 1 加载web资源 形成文档
-loader = WebBaseLoader(web_path = "https://zh.wikipedia.org/wiki/%E9%BB%91%E7%A5%9E%E8%AF%9D%EF%BC%9A%E6%82%9F%E7%A9%BA")
+print("=========开始加载网页=========")
+#loader = WebBaseLoader(web_path = "https://zh.wikipedia.org/wiki/%E9%BB%91%E7%A5%9E%E8%AF%9D%EF%BC%9A%E6%82%9F%E7%A9%BA")
+loader = WebBaseLoader(web_path = "https://www.google.com/search?q=%E5%87%A0%E7%82%B9%E4%BA%86&oq=%E5%87%A0%E7%82%B9%E4%BA%86&gs_lcrp=EgZjaHJvbWUyBggAEEUYOTIHCAEQABiABDIHCAIQABiABDIHCAMQABiABDIHCAQQABiABDIHCAUQABiABDIHCAYQABiABDIHCAcQABiABDIHCAgQABiABDIHCAkQABiABNIBCTE3NjBqMGoxNagCCLACAfEFoOrhLVQxVaLxBaDq4S1UMVWi&sourceid=chrome&ie=UTF-8")
+
 document = loader.load()
+print("=========加载网页完成=========")
+
+# 打印输出看下document具体结构
+print("webBaseLoader加载的document类型是:", type(document))
+print("每一个d中的meta信息:",document[0].metadata)
+print("每一个d中的page_content信息:",document[0].page_content)
+    
 
 # 2 chunk 文档拆分
-text_spliter = RecursiveCharacterTextSplitter(chunk_size = 1000, chunk_overlap = 200)
+text_spliter = RecursiveCharacterTextSplitter(chunk_size = 300, chunk_overlap = 100)
 all_documents = text_spliter.split_documents(document)
 
 # 3 设置embedding模型
@@ -28,15 +38,16 @@ embeddings = HuggingFaceEmbeddings(
 vector_store = InMemoryVectorStore(embeddings)
 vector_store.add_documents(all_documents)
 
-# 5 创建检索器 TODO SPF 此处as_retriever作用&意义是什么
+# 5 创建检索器 qa 此处as_retriever作用&意义是什么
+# 返回一个检索器接口VectorStoreRetriever
 retriever = vector_store.as_retriever(search_kwargs = {"k":6})
 
 question = "黑神话悟空有哪些章节"
 
 # 打印看下检索的内容
 docs = retriever.invoke(question)
-for d in docs :
-    print("retriever invoke返回的内容是 -> ",d.page_content[:200])
+# for d in docs :
+#     print("retriever invoke返回的内容是 -> ",d.page_content[:200])
 # 6 创建提示词模板
 templte ="""
     基于以下上下文，回答问题。如果上下文中没有相关信息，
