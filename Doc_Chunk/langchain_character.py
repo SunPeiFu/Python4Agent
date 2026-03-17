@@ -1,0 +1,21 @@
+
+from langchain_community.document_loaders import TextLoader
+from langchain_text_splitters import CharacterTextSplitter
+
+
+# 读取文档
+loader = TextLoader("90-文档-Data/山西文旅/云冈石窟.txt")
+docs = loader.load()
+
+# 切分文档
+characterTextSpliter = CharacterTextSplitter(
+    chunk_size = 100, # chunk_size 100 是按照多少个字符切分(如果是中文)
+    chunk_overlap = 10 # chunk_overlap 10 对应中文是多少
+)
+split_documents = characterTextSpliter.split_documents(docs)
+for split_doc in split_documents:
+    print("切分后的metadata:", split_doc.metadata)
+    print("切分后的pagecontext:", split_doc.page_content)
+
+
+# 

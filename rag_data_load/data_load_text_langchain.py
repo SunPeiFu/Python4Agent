@@ -1,8 +1,18 @@
 import os
 import json
-from langchain_community.document_loaders import TextLoader
+from langchain_community.document_loaders import DirectoryLoader, TextLoader
+
 current_file_path = os.path.dirname(__file__)
 print("当前脚本执行位置:", current_file_path)
+
+# 替换空串
+current_file_path = current_file_path.replace("rag_data_load","")
+data_folder_path = os.path.join(current_file_path, "90-文档-Data")
+print("data_folder_path的路径是:",data_folder_path)
+
+text_loader = DirectoryLoader(path = data_folder_path)
+documents = text_loader.load()
+print(f"当前文件下{data_folder_path} 共有{len(documents)}个文件")
 
 current_file_path = current_file_path.replace("rag_data_load","")
 print("替换后的文件路径:", current_file_path)
@@ -28,8 +38,8 @@ if documents:
 
 #print("doc的具体内容:", documents)
 # langchain中的Docment结构 :
-# source -> 文件来源路径
 # page_content -> 文件具体内容
-# [Document(metadata={'source': '/Users/mac/PycharmProjects/Python4Agent/90-文档-Data/黑悟空/黑悟空wiki.txt'}, 
-# page_content='黑神话：悟空\n\n类型\t动作角色扮演[1]\n平台\}]
+# metadata -> 源数据信息
+
+# 加载某个文件夹下
 
