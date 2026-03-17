@@ -3,7 +3,7 @@ from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import CharacterTextSplitter
 
 
-# 读取文档
+# 读取文档(TextLoader简单读取模式 不智能 demo用)
 loader = TextLoader("90-文档-Data/山西文旅/云冈石窟.txt")
 docs = loader.load()
 
