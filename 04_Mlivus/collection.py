@@ -68,6 +68,8 @@ client.load_collection(collection_name=rename_collection_name)
 after_load_status =client.get_load_state(collection_name=rename_collection_name)
 print("after_load_status:",after_load_status)
 
+
+
 # parttion相关操作
 
 # 管理alias
