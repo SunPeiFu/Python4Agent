@@ -49,7 +49,8 @@ for i, element in enumerate(data):
 write_result = client.insert(collection_name=collection_name , data = data, timeout=60000)
 print("write_result:", write_result) #write_result: {'insert_count': 3, 'ids': [0, 1, 2]}
 
-# 查询检索
+# search查询
+    # 基础向量查询
 question = "Who is Alan Turing?"
 query_data = default_embedding.encode_queries([question])
 
@@ -68,5 +69,15 @@ print("search的结果:", result)
  ]
  ]
 """
+    # 向量查询&条件过滤
 
 
+filter_result = client.search(
+    collection_name= collection_name,
+    data = query_data,
+    output_fields=["text","subject"],
+    # 增加标量过滤
+    filter=["subject == history"], # 注意此处需要增加引号 不加引号会被当做变量or标识符
+    limit = 2,
+)
+print("标量过滤结果 :", filter_result)

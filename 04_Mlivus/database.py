@@ -1,5 +1,4 @@
-from pymilvus import MilvusClient, db
-from pymilvus import model
+from pymilvus import MilvusClient
 
 
 # 此篇幅为database相关操作
