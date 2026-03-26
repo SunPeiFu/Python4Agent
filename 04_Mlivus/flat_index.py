@@ -39,8 +39,8 @@ index.add_index(
     index_name = INDEX_NAME,
     field_name= "vector",
     index_type="FLAT",
-    metric_tpye = "L2",
-    parmas = {}
+    metric_type = "L2",
+    params = {}
 )
 client.create_index(
     collection_name = COLLECTION_NAME,
@@ -61,6 +61,7 @@ client.load_collection(collection_name= COLLECTION_NAME)
 
 # 执行检索
 search_vectors = [[random.random() for _ in range(128)]]
+print("search_vectors:", search_vectors)
 search_result = client.search(
     collection_name=COLLECTION_NAME,
     data = search_vectors,
@@ -69,12 +70,11 @@ search_result = client.search(
 )
 print("search_result:", search_result)
 
-for search_detail in search_result:
-    # 每个search_detail 还是一个list 字典
-    for detail in search_detail:
-            detail_id = detail.get("id", "empty")
-            distance = detail.get("distance", "default_distance")
-            print(f"detail_id是{detail_id} ,distance是{distance}")
+
+        
+        
+        
+            
 
             
 
