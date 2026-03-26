@@ -61,14 +61,31 @@ client.load_collection(collection_name= COLLECTION_NAME)
 
 # 执行检索
 search_vectors = [[random.random() for _ in range(128)]]
-print("search_vectors:", search_vectors)
+print("search_vectors:", )
 search_result = client.search(
     collection_name=COLLECTION_NAME,
     data = search_vectors,
-    search_params = ["id"],
+    # 此处怎么写会报错 源码search_params定义是字典 需要传字典
+    #search_params = ["id"],
     limit=5
 )
 print("search_result:", search_result)
+# 结果是
+"""
+data: [[{'id': 196, 'distance': 14.469127655029297, 'entity': {}}, {'id': 742, 'distance': 14.974742889404297, 'entity': {}}, {'id': 217, 'distance': 15.319454193115234, 'entity': {}}, {'id': 963, 'distance': 15.812398910522461, 'entity': {}}, {'id': 645, 'distance': 15.859505653381348, 'entity': {}}]]
+每个result_detail: {'id': 196, 'distance': 14.469127655029297, 'entity': {}}
+"""
+
+for search_result_list in search_result:
+    # 每个search_result_list里面的元素是字典 还需要遍历
+    for result_detail in search_result_list:
+        print("每个result_detail:", result_detail)
+        # {'id': 963, 'distance': 15.812398910522461, 'entity': {}}
+        detail_id = result_detail.get("id", "empty")
+        detail_distance = result_detail.get("distance", "empty")
+        print(f"每个detail_id:{detail_id}, detail_distance是:{detail_distance}")
+
+        
 
 
         
