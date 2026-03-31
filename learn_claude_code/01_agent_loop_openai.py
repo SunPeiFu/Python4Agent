@@ -3,7 +3,11 @@ import os
 import subprocess
 from openai import OpenAI
 import json
-# 使用openai的模型
+
+"""
+使用openai的兼容模型 单个工具调用
+"""
+
 
 # 读取当前文件路径
 current_dir = "/Users/mac/PycharmProjects/Python4Agent"
