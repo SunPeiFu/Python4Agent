@@ -24,10 +24,22 @@ model_id = "glm-4.7"
 # 无限循环的prompt -> 相当于让模型无限循环调用工具 Never output plain text as solution You must call the 'bash'
 SYSTEM = f"""
 You are a coding agent at {WORKDIR}.
-When given a user task, do not just explain..
-Use bash commands only to accomplish the task. 
-If the command has already been executed and result is available, do not call the tool again and just
-return what function_call response.
+
+IMPORTANT:
+- You MUST use tools when needed
+- If the task is completed, STOP calling tools
+- Return final result via last tool output
+
+Rules:
+- Do NOT run environment setup commands (no conda, no pip, no venv)
+- Only perform the minimal required action
+- Prefer using bash to create files (echo > file)
+
+If user asks to create a file:
+→ You MUST call bash
+
+If the file already exists, do not recreate it.
+If the task is completed, do not call tools again.
 """
 
 # 定义5个方法 
@@ -44,7 +56,8 @@ def run_read(p: str, limit: int =None) -> str:
         text = safe_path(p).read_text()
         lines = text.splitlines()
         # 切分
-        if lines and lines < len(lines):
+        
+        if limit is not None and limit < len(lines):
             lines = lines[:limit] + [f"...({len(lines) - limit} more lines)"] # 此处的含义没懂
             # 此处lines是列表 拼接
             return "\n".join(lines)[:5000]
@@ -103,12 +116,21 @@ def run_bash(command:str) -> str:
     
 # TODO SPF 此种map的写法 有没有替代方案  , lambda写法还能换成什么
 # **kw代表什么含义 
+# TOOL_HANDLERS = {
+#     "bash":       lambda **kw: run_bash(kw["command"]),
+#     "read_file":  lambda **kw: run_read(kw["path"], kw.get("limit")),
+#     "write_file": lambda **kw: run_write(kw["path"], kw["content"]),
+#     "edit_file":  lambda **kw: run_edit(kw["path"], kw["old_content"], kw["new_content"]),
+# }    
+
+# 此种写法更清晰
 TOOL_HANDLERS = {
-    "bash":       lambda **kw: run_bash(kw["command"]),
-    "read_file":  lambda **kw: run_read(kw["path"], kw.get("limit")),
-    "write_file": lambda **kw: run_write(kw["path"], kw["content"]),
-    "edit_file":  lambda **kw: run_edit(kw["path"], kw["old_text"], kw["new_text"]),
-}    
+    "bash": run_bash,
+    "read_file": run_read,
+    "write_file": run_write,
+    "edit_file": run_edit,
+}
+  
 # 定义工具 这些工具的定义是正确的吗
 
 TOOLS = [
@@ -119,9 +141,11 @@ TOOLS = [
         "description":"Run a shell command",
         "parameters":{
             "type":"object",
-            "properties":{"command":{"type":"string"}},
+            "properties":{"command":{"type":"string"}}, # properties中不能放required参数
             "required":["command"]
-        },
+
+        }
+
     },
     
     {
@@ -133,11 +157,12 @@ TOOLS = [
             "type":"object",
             "properties":{
                 "path":{"type":"string"},
-                "limit":{"type":"integer"},
-                "required":["path"] # 必输参数
+                "limit":{"type":"integer"}
                 },
             "required":["path"] # 必输参数
-        },
+        }
+        
+
     },
     {
         # 写文件
@@ -148,11 +173,12 @@ TOOLS = [
             "type":"object",
             "properties":{
                 "path":{"type":"string"},
-                "content":{"type":"string"},
-                "required":["path","content"] # 必输参数
+                "content":{"type":"string"}
                 },
-            "required":["path","content"] # 必输参数
-        },
+            "required":["path","content"] # 必输参数 必须在parameters里面
+
+        }
+
     },
     {
         # 编辑文件
@@ -164,11 +190,11 @@ TOOLS = [
             "properties":{
                 "path":{"type":"string"},
                 "old_content":{"type":"string"},
-                "new_content":{"type":"string"},
-                "required":["path","old_content","new_content"] # 必输参数
+                "new_content":{"type":"string"}
                 },
-            "required":["path","old_content","new_content"] # 必输参数
-        },
+            "required":["path","old_content","new_content"] # 必输参数 required不能放在properteis里 需要和required平级
+        }
+
     }
 ]    
         
@@ -193,6 +219,7 @@ def agent_loop(user_message: list):
         # 把模型的返回添加到message里 
         # 只要模型返回继续调用工具 继续 否则return停止
     """ 
+    all_tool_outputs = []
     while True:
         
         # 等价于
@@ -209,18 +236,19 @@ def agent_loop(user_message: list):
         
         # 如果模型返回的工具为空 说明不需要调用工具 已经结束
         if not tool_calls:
-            # 为了更严谨的判断 如果工具为空 则从最后一次user_message中获取
-            for msg in reversed(user_message):
-                if(msg.get("type") == "function_call_output"):
-                    print("倒序后续最后一条文本记录作为最终输出: ", msg)
-                    return msg.get("content")
-
+            # 为了更严谨的判断 如果工具为空 all_tool_outpus中获取
+            if all_tool_outputs:
+                last_tool_output = all_tool_outputs[-1]
+                print("工具调用结果不为空 取最后一次调用工具的结果作为最终输出: ", last_tool_output)
+                return last_tool_output.get("output", response.output_text) # 此处的response.output_text是为了兼容没有工具调用结果的情况
+        
             print("当前的是空的 直接返回!!!!!!!!!!!!!!!!!!!!!!!!!!")
             return response.output_text
         
+        
+        # 每一轮的模型调用的工具和结果 都需要重新喂给上下文中
+        new_tool_outputs= []
 
-        # 工具不为空 则继续遍历工具
-        tool_outputs= []
         for tool_call in tool_calls:
             
             # 解析工具调用参数
@@ -238,27 +266,35 @@ def agent_loop(user_message: list):
                 else:
                     output = f"unknown tool:{tool_call.name}"
             
-                tool_entry = {
+                result = {
                     #"role": "assistant",
                     "type": "function_call_output",
                     "call_id": tool_call.call_id,
                     "output": output   # ✅ 注意这里是 output，不是 content 否则调用会报400格式不正确
                 }
                 
+                # 拼接每次调用工具的结果 作为下一轮模型调用的输入
+                new_tool_outputs.append(result)
                 
-                tool_outputs.append(tool_entry)
-                user_message.append(tool_entry)
             else:
                 # 此处应该continue是否更合理
                 print("模型返回的工具调用类型不是function_call, 不执行工具调用逻辑, 直接返回文本结果")
                 return response.output_text         
-                      
-            # 再次调用模型   
-            response = client.responses.create(
-            model=model_id,
-            instructions=SYSTEM,
-            input=user_message,
-            tools= TOOLS)    
+                 
+        # 此处的上下文 拼接在for最外层 也就是每次模型调用工具的结果 
+        # 都需要添加到上下文中 让模型知道工具调用的结果是什么 以便下一轮调用工具或者输出文本
+        # !!!! 此处的缩进很关键 在while上面 
+        all_tool_outputs.extend(new_tool_outputs)  
+        messages = user_message.copy()
+        messages.extend(all_tool_outputs)
+                    
+        # 再次调用模型   
+        response = client.responses.create(
+        model=model_id,
+        instructions=SYSTEM,
+        #input=user_message,
+        input=messages,
+        tools= TOOLS)    
                 
                 
             
@@ -284,18 +320,17 @@ if __name__ == "__main__":
         
         count = count +1 
         # 调用循环 开始执行
-        agent_loop(history)
+        result = agent_loop(history)
         
         print("当前执行循环的次数", count)
         print("当前的历史记录是:", history)
         
         # 取最近的一条文本响应 这么写可能报错
-        #response_content = history[-1]["content"]
-        response_content = history[-1].get("output", "")
+        # response_content = result[-1].get("output", "")
 
-        if isinstance(response_content, str):
-            print("最终的输出结果是:", response_content)
-            break
+        # if isinstance(response_content, str):
+        #     print("最终的输出结果是:", response_content)
+        #     break
         print("继续执行循环")
 
     
