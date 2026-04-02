@@ -42,8 +42,54 @@ If the file already exists, do not recreate it.
 If the task is completed, do not call tools again.
 """
 
-# 定义5个方法 
-# 文件是否是安全的
+class TodoManager:
+    
+    def __int__(self):
+        self.items = []
+    
+    def update(self, items : list) -> str:
+        
+        # 校验长度
+        if len(items) > 20:
+            raise ValueError("Too many todo items, max is 20")
+        
+        result = []
+        in_progress_count = 0
+        
+        for i,item in enumerate(items):
+            
+            # item中包含三个属性 id ,text, status
+            id = str(item.get("id",str(i+1))).strip()  # 此处没有获取到id 使用i+1 设计意图是为何
+            text = str(item.get("text","")).strip() 
+            status = str(item.get("status","pending")).lower() 
+            
+            # 参数校验
+            if not text:
+                raise ValueError(f"Todo item {id} text is required")
+            
+            if not status:
+                raise ValueError(f"Todo item {id} status is required")
+
+            if status == "in_progress":
+                in_progress_count += 1
+                
+            if in_progress_count > 1:
+                raise ValueError("Only one todo item can be in_progress")   
+                
+            entity = {
+                "id": id,
+                "text": text,
+                "status": status
+            }
+            
+            result.append(entity)
+        
+        
+        
+        
+        
+        
+# 文件路径是否安全
 def safe_path(p: str) -> Path:
     path = (WORKDIR / p).resolve() # 此处resolve是什么作用 (解析创建文件?)
     if not path.is_relative_to(WORKDIR): # 此处的is_relative_to方法含义?
