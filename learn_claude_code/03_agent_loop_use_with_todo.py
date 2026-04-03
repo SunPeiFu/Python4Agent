@@ -49,6 +49,8 @@ class TodoManager:
     
     def update(self, items : list) -> str:
         
+        print("更新todo项, 输入的items是:", items)
+        
         # 校验长度
         if len(items) > 20:
             raise ValueError("Too many todo items, max is 20")
@@ -73,9 +75,6 @@ class TodoManager:
             if status == "in_progress":
                 in_progress_count += 1
                 
-            if in_progress_count > 1:
-                raise ValueError("Only one todo item can be in_progress")   
-                
             entity = {
                 "id": id,
                 "text": text,
@@ -84,10 +83,41 @@ class TodoManager:
             
             result.append(entity)
         
+        # 循环结束 
+        if in_progress_count > 1:
+            raise ValueError("Only one todo item can be in_progress")   
+                    
+        self.items = result
+        return self.render(self.items)
+    
+    # render方法的作用 方法名如何理解
+    def render(self, items : list) -> str:
         
+        print("进入render方法 :", items)
         
+        if not items:
+            return " No todo items "
         
+        lines = []
+        for item in items:
+            
+            id = item["id"]
+            text = item["text"]
+            status = item["status"]
+            
+            # 这段代码没看懂啥意思
+            marker = {"pending":"[]", "in_progress":"[>]", "completed":"[x]"}[status]
+            lines.append(f"{marker} #{id}:{text}")
+            
+        # 循环结束 打印输出已完成的任务    
+        doneCount = sum(1 for item in items if item["status"] == "completed")
         
+        # 输出当前任务的进度
+        lines.append(f"\n{doneCount}/{len(items)} done")
+        
+        return "\n".join(lines)
+     
+TODO = TodoManager() 
         
 # 文件路径是否安全
 def safe_path(p: str) -> Path:
@@ -154,31 +184,30 @@ def run_bash(command:str) -> str:
         stdout = r.stdout
         stderr = r.stderr
         
+        print("run_bash 中stdout的内容是:", stdout)
+        print("run_bash 中stderr的内容是:", stderr)
+        
         out = (stdout + stderr).strip() # 此处是strip是什么意思
-        # 三元表达式
-        return out[:50000] if out else "resposne it too long"
+        print("run_bash 中最终输出的内容是:", out)
+        if out:
+            return out[:5000] if len(out) >= 5000 else out
+        return "No output from the command"
     except subprocess.TimeoutExpired:
         return "error time out (120s)"
     
 # TODO SPF 此种map的写法 有没有替代方案  , lambda写法还能换成什么
 # **kw代表什么含义 
-# TOOL_HANDLERS = {
-#     "bash":       lambda **kw: run_bash(kw["command"]),
-#     "read_file":  lambda **kw: run_read(kw["path"], kw.get("limit")),
-#     "write_file": lambda **kw: run_write(kw["path"], kw["content"]),
-#     "edit_file":  lambda **kw: run_edit(kw["path"], kw["old_content"], kw["new_content"]),
-# }    
-
-# 此种写法更清晰
 TOOL_HANDLERS = {
-    "bash": run_bash,
-    "read_file": run_read,
-    "write_file": run_write,
-    "edit_file": run_edit,
-}
+    "bash":       lambda **kw: run_bash(kw["command"]),
+    "read_file":  lambda **kw: run_read(kw["path"], kw.get("limit")),
+    "write_file": lambda **kw: run_write(kw["path"], kw["content"]),
+    "edit_file":  lambda **kw: run_edit(kw["path"], kw["old_content"], kw["new_content"]),
+    "todo":       lambda **kw: TODO.update(kw["items"])
+
+}    
+
   
 # 定义工具 这些工具的定义是正确的吗
-
 TOOLS = [
     {
         # 工具名称&描述&输入约束
@@ -241,7 +270,30 @@ TOOLS = [
             "required":["path","old_content","new_content"] # 必输参数 required不能放在properteis里 需要和required平级
         }
 
+    },
+    {
+        # todo状态管理工具
+        "type":"function", 
+        "name":"todo",
+        "description":"Update task list. Track progress on multi-step tasks.",
+        "parameters":{
+            "type":"object",
+            "properties":{
+                "items":{
+                    "type":"array", # 数组字段
+                    "properties":{
+                        "id":{"type":"string"},
+                        "text":{"type":"string"},
+                        "status":{"type":"string", "enum":["pending","in_progress","completed"]}
+                    },
+                    "required":["id","text","status"] # 每个todo item必须包含id text status三个属性
+                }
+            },
+            "required":["items"] # 每个todo item必须包含id text status三个属性
+        }
+
     }
+    
 ]    
         
     
@@ -253,11 +305,14 @@ def agent_loop(user_message: list):
         base_url=base_url,
         timeout=180)
     
+    context = [{"role":"system", "content": SYSTEM}] + user_message.copy() # 此处的context是一个列表 包含系统角色定位和用户输入
+    
     response = client.responses.create(
-        model=model_id,
-        instructions=SYSTEM,
-        input=user_message,
-        tools= TOOLS
+         model=model_id,
+         instructions=SYSTEM,
+         input=context,
+         #messages = context,
+         tools= TOOLS
     )
     
     """
@@ -266,19 +321,35 @@ def agent_loop(user_message: list):
         # 只要模型返回继续调用工具 继续 否则return停止
     """ 
     all_tool_outputs = []
+    
+    # 03版本中的 todo_for_count
+    todo_for_count = 0
+    
+    # 初始化上下文 系统角色定位 + 历史消息
     while True:
         
-        # 等价于
-        # tool_calls = []
-        # for item in response.output:
-        #     if "function_call" == item.type:
-        #         tool_calls.append(item)
+        print("当前的上下文是:", context)
+        
+        # 待办事项有些多 提醒模型
+        if todo_for_count >= 3 and context:
+            last = context[-1] # 取最后一条messages
+            print("当前的上下文最后一条消息是:", last)
+            if last["role"] == "user":
+                # 如果content是字符串 则append
+                if isinstance(last["content"], str):
+                    context.append({"role":"user", "content": "<reminder>Update your todos.</reminder>"})
+                # 如果是列表 则插入到第一行    
+                if isinstance(last["content"], list):
+                    last["content"].insert(0, {"type": "text", "text": "<reminder>Update your todos.</reminder>"})
+
+    
         print("返回的结果类型是response type:", type(response))
         print("返回response 内容是:", response)
 
         # 获取模型返回的调用工具列表
         tool_calls = [item for item in response.output if item.type == "function_call"]
         print("模型返回的工具调用列表是:", tool_calls)
+        
         
         # 如果模型返回的工具为空 说明不需要调用工具 已经结束
         if not tool_calls:
@@ -291,10 +362,11 @@ def agent_loop(user_message: list):
             print("当前的是空的 直接返回!!!!!!!!!!!!!!!!!!!!!!!!!!")
             return response.output_text
         
-        
+
         # 每一轮的模型调用的工具和结果 都需要重新喂给上下文中
         new_tool_outputs= []
-
+        # 03版本中添加标识 模型返回了工具名称 "todo" 
+        use_todo = False
         for tool_call in tool_calls:
             
             # 解析工具调用参数
@@ -313,14 +385,17 @@ def agent_loop(user_message: list):
                     output = f"unknown tool:{tool_call.name}"
             
                 result = {
-                    #"role": "assistant",
                     "type": "function_call_output",
                     "call_id": tool_call.call_id,
                     "output": output   # ✅ 注意这里是 output，不是 content 否则调用会报400格式不正确
                 }
-                
                 # 拼接每次调用工具的结果 作为下一轮模型调用的输入
                 new_tool_outputs.append(result)
+                
+            
+                # 模型返回的工具是todo 说明模型需要调用todo工具 和389行的配合使用 为True重置为todo项0
+                if "todo" == tool_call.name:
+                    use_todo = True
                 
             else:
                 # 此处应该continue是否更合理
@@ -331,15 +406,20 @@ def agent_loop(user_message: list):
         # 都需要添加到上下文中 让模型知道工具调用的结果是什么 以便下一轮调用工具或者输出文本
         # !!!! 此处的缩进很关键 在while上面  messages即可理解成上下文context 包含(用户输入+模型调用工具&工具执行结果)
         all_tool_outputs.extend(new_tool_outputs)  
-        messages = user_message.copy()
-        messages.extend(all_tool_outputs)
+        #messages = user_message.copy()
+        
+        #messages.extend(all_tool_outputs)
+    
+        context.extend(all_tool_outputs)
+        
+        # 03版本中的内容 
+        todo_for_count = 0 if use_todo else todo_for_count + 1
                     
         # 再次调用模型   
         response = client.responses.create(
         model=model_id,
         instructions=SYSTEM,
-        #input=user_message,
-        input=messages,
+        input = context,
         tools= TOOLS)    
                 
                 
@@ -379,7 +459,4 @@ if __name__ == "__main__":
         #     break
         print("继续执行循环")
 
-    
-# TODO 调试 
-# 1 解决没有conda环境的问题
-# 2 让模型能够稳定的创还能,编辑文件      
+   
