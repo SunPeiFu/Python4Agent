@@ -3,6 +3,7 @@ import os
 import subprocess
 from openai import OpenAI
 import json
+import re
 from pathlib import Path
 
 
@@ -61,9 +62,31 @@ class SkillLoader:
             # 初始化成员变量skills meta中有包含(description和tag)
             self.skills[name] = {"meta":meta, "body": body} 
 
-    # 格式化解析
-    def parse_frontmatter(self, text: str):
-        return None
+
+    
+    # 格式化解析 -> 返回元组
+    def parse_frontmatter(self, text: str) -> tuple:
+        
+        # 正则匹配 第一个以-- 和-- 结尾包裹的内容
+        match = re.match(r"^---\n(.*?)\n---\n(.*)", text, re.DOTALL)
+        if not match:
+            return {}, text
+        
+        meta = {}
+        # 此处splitlines()的作用是将字符串按照行切分成列表  比split('\n')更智能 以便逐行处理
+        for line in match.group(1).strip().splitlines():
+            if ":" in line:
+                # 1是为了防止解析崩溃 只匹配第一个:切割 
+                # 此处的1是什么意思 如果是2能怎样
+                # eg -> description: 这是一个:测试 
+                # 按照1切割 -> ['description', ' 这是一个:测试']
+                # 按照2切割 -> ['description', ' 这是一个', '测试'] 多了一个
+                key,value = line.split(":", 1)
+                
+                # 此处就是循环字典 标准初始化方式
+                meta[key.strip()] = value.strip()
+            
+        return meta, match.group(2).strip()    
     
     # 获取技能描述 -> 格式 - {name}:{desc}[tags] desc中即meta里的description和tag
     def get_desc(self):
@@ -78,8 +101,7 @@ class SkillLoader:
             tags = skill["meta"].get("tags", "no tags") 
             # skill名称: 描述加标签
             line = f"- {name}: {desc}"
-            
-    
+        
             if tags:
                 #line.append(f" - [{tag}]") append前提line必须是列表
                 line += f" - [{tags}]" # 可能会有性能损失
@@ -102,7 +124,7 @@ class SkillLoader:
         body = skill.get("body", "no content")
         return f"<skill name = \"{skill_name}\">\n{body}\n</skill>"
             
-            
+SKILL_LOADER = SkillLoader(skill_path)               
 
 # 定义SkillLoader
  # init方法 
@@ -137,6 +159,10 @@ If user asks to create a file:
 
 If the file already exists, do not recreate it.
 If the task is completed, do not call tools again.
+
+Skills available:
+
+{SKILL_LOADER.get_desc()}
 """
 
 # 定义5个方法 
