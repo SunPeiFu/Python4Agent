@@ -126,20 +126,6 @@ class SkillLoader:
             
 SKILL_LOADER = SkillLoader(skill_path)               
 
-# 定义SkillLoader
- # init方法 
-  # 属性skill_path & skill(meta&body) & loadAll方法
- # parse_frontmatter
- # getDesc
- # getcontext
-
-
-
-
- 
- 
- # 加载skillLoader 注入到system中
- 
 # 无限循环的prompt -> 相当于让模型无限循环调用工具 Never output plain text as solution You must call the 'bash'
 SYSTEM = f"""
 You are a coding agent at {WORKDIR}.
@@ -237,13 +223,14 @@ def run_bash(command:str) -> str:
     except subprocess.TimeoutExpired:
         return "error time out (120s)"
     
-# 此种写法更清晰
 TOOL_HANDLERS = {
-    "bash": run_bash,
-    "read_file": run_read,
-    "write_file": run_write,
-    "edit_file": run_edit,
-}
+    "bash":       lambda **kw: run_bash(kw["command"]),
+    "read_file":  lambda **kw: run_read(kw["path"], kw.get("limit")),
+    "write_file": lambda **kw: run_write(kw["path"], kw["content"]),
+    "edit_file":  lambda **kw: run_edit(kw["path"], kw["old_content"], kw["new_content"]),
+    "skill_load": lambda **kw: SKILL_LOADER.get_content(kw["items"])
+
+}   
   
 # 定义工具 这些工具的定义是正确的吗
 
@@ -310,6 +297,24 @@ TOOLS = [
         }
 
     },
+    {
+        # 加载技能
+        "type":"function", 
+        "name":"skill_load",
+        "description":"Load specialized knowledge by name.",
+        "parameters":{
+            "type":"object",
+            "properties":{
+                "name":{
+                    "type":"string",
+                    "description": "Skill name to load" # 片段2中有描述，建议保留
+                    }
+                
+                },
+            "required":["name"]
+        }
+
+    }
     # 此处定义skill工具
 ]    
         
