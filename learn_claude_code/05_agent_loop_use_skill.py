@@ -11,6 +11,16 @@ skill设计理念
  # 渐进式披露 不一次给模型所有内容
  # system prompt中只放skill名称和描述
  # 当模型需要调工具时 在按需加载指定skill
+ # 延伸思考 为什么get_desc和get_content结构不一致
+   # 涉及agent工作领域中两阶段工作流
+    # 感知阶段Perception get_desc 快速披露感知信息 
+    # 执行阶段Execution get_content 详细具体执行逻辑
+   # get_desc是技能菜单列表 类似工具索引 
+    # 节省token
+    # 便于模型快速横向对比 调用什么工具
+   # get_content是技能具体内容 
+    # 建立强边界 
+    # 上下文锚点 有标签 有明确的开始结束标识 模型可以回答 根据<skill name = "xxx">的内容 我发现
 """
 
 # 读取当前文件路径
@@ -54,6 +64,7 @@ class SkillLoader:
     # 格式化解析
     def parse_frontmatter(self, text: str):
         return None
+    
     # 获取技能描述 -> 格式 - {name}:{desc}[tags] desc中即meta里的description和tag
     def get_desc(self):
         
@@ -68,7 +79,7 @@ class SkillLoader:
             # skill名称: 描述加标签
             line = f"- {name}: {desc}"
             
-            # ? 
+    
             if tags:
                 #line.append(f" - [{tag}]") append前提line必须是列表
                 line += f" - [{tags}]" # 可能会有性能损失
@@ -76,8 +87,20 @@ class SkillLoader:
             lines.append(line)
 
         return "\n".join(lines)
+    
+    
     # 获取技能内容    
-               
+    def get_content(self, skill_name: str):  
+        
+        if not self.skills:         
+            raise ValueError("get_content No skills available")
+        
+        skill = self.skills.get(skill_name) 
+        if not skill:
+            return f"skill '{skill_name}' is not exist"
+        
+        body = skill.get("body", "no content")
+        return f"<skill name = \"{skill_name}\">\n{body}\n</skill>"
             
             
 
