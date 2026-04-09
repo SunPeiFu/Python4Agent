@@ -32,7 +32,13 @@ print("当前的工作目录是:", WORKDIR)
 api_key = "sk-qFvDkFk22zpWFpVWLGjHtBXwIH1wekq11pZNzLz0e582pl0v"
 base_url = "https://api.lotte-library.top/v1"
 model_id = "glm-4.7"
-skill_path = WORKDIR / "skills"
+skill_path = WORKDIR/"learn_claude_code"/"skills"
+
+
+print("技能文件的路径是:", skill_path)
+
+
+
 
 class SkillLoader:
     
@@ -49,18 +55,29 @@ class SkillLoader:
             raise ValueError(f"Skill path {self.skill_path} does not exist")
         
         # 遍历读取文件
-        # ? 1 此处for sorted是什么写法
-        # ? 2 glob即递归遍历当前文件夹和所有子文件夹吗
-        for element in sorted(self.skill_path.glob("*.md")): 
-            # ? .stem是什么
-            name = element.stem
+        # sorted含义 按照文件名自然排序 类似 a,b,c这种
+        # glob只是当当前文件夹下匹配 如果想实现递归 是需要写成glob("**/*.md")或者rglob("*.md") 两种都可以实现
+        for element in sorted(self.skill_path.glob("**/*.md")): 
+            
+            
+            # stem是path对象属性  
+            """
+            如果文件路径是 /home/user/skills/python_coding.md
+            element.name 是 python_coding.md
+            element.stem 则是 python_coding
+            element.suffix 则是 .md
+            """
+            
+            # 此处需要兼容 同名取父文件夹
+            name = element.name == "SKILL.md" and element.parent.name or element.stem
+            print("load_all_skills -> 当前读取的技能文件名称是:", name)
             # 读取文件所有内容
-            text = element.read_text(encoding="utf-8")
+            text = element.read_text()
             # 转成skill中的meta和body, python中方法调用可以直接返回多个值 以元组的形式返回
             meta, body = self.parse_frontmatter(text)
             
             # 初始化成员变量skills meta中有包含(description和tag)
-            self.skills[name] = {"meta":meta, "body": body} 
+            self.skills[name] = {"meta":meta, "body": body, "path" : str(element)} 
 
 
     
@@ -68,7 +85,9 @@ class SkillLoader:
     def parse_frontmatter(self, text: str) -> tuple:
         
         # 正则匹配 第一个以-- 和-- 结尾包裹的内容
-        match = re.match(r"^---\n(.*?)\n---\n(.*)", text, re.DOTALL)
+        #match = re.match(r"^---\n(.*?)\n---\n(.*)", text, re.DOTALL)
+        pattern = r"^---\s*\r?\n(.*?)\r?\n---\s*\r?\n?(.*)"
+        match = re.match(pattern, text, re.DOTALL | re.MULTILINE)
         if not match:
             return {}, text
         
@@ -91,6 +110,8 @@ class SkillLoader:
     # 获取技能描述 -> 格式 - {name}:{desc}[tags] desc中即meta里的description和tag
     def get_desc(self):
         
+        skill_length = len(self.skills.items())
+        print("get_desc方法的技能数量是:", skill_length)
         lines = []
 
         if not self.skills:
@@ -107,7 +128,7 @@ class SkillLoader:
                 line += f" - [{tags}]" # 可能会有性能损失
                 
             lines.append(line)
-
+        print("get_desc方法的技能描述列表是:", lines)
         return "\n".join(lines)
     
     
@@ -124,32 +145,18 @@ class SkillLoader:
         body = skill.get("body", "no content")
         return f"<skill name = \"{skill_name}\">\n{body}\n</skill>"
             
-SKILL_LOADER = SkillLoader(skill_path)               
+SKILL_LOADER = SkillLoader(skill_path)    
+skill_desc = SKILL_LOADER.get_desc()
 
-# 无限循环的prompt -> 相当于让模型无限循环调用工具 Never output plain text as solution You must call the 'bash'
-SYSTEM = f"""
-You are a coding agent at {WORKDIR}.
+current_skills = SKILL_LOADER.skills
 
-IMPORTANT:
-- You MUST use tools when needed
-- If the task is completed, STOP calling tools
-- Return final result via last tool output
-
-Rules:
-- Do NOT run environment setup commands (no conda, no pip, no venv)
-- Only perform the minimal required action
-- Prefer using bash to create files (echo > file)
-
-If user asks to create a file:
-→ You MUST call bash
-
-If the file already exists, do not recreate it.
-If the task is completed, do not call tools again.
-
+print("当前加载的技能描述信息是什么:", skill_desc)
+           
+SYSTEM = f"""You are a coding agent at {WORKDIR}.
+"Note: The bash environment is already pre-configured. Do not use 'conda activate'. Run commands directly."
+Use load_skill to access specialized knowledge before tackling unfamiliar topics.
 Skills available:
-
-{SKILL_LOADER.get_desc()}
-"""
+{SKILL_LOADER.get_desc()}"""
 
 # 定义5个方法 
 # 文件是否是安全的
@@ -228,7 +235,7 @@ TOOL_HANDLERS = {
     "read_file":  lambda **kw: run_read(kw["path"], kw.get("limit")),
     "write_file": lambda **kw: run_write(kw["path"], kw["content"]),
     "edit_file":  lambda **kw: run_edit(kw["path"], kw["old_content"], kw["new_content"]),
-    "skill_load": lambda **kw: SKILL_LOADER.get_content(kw["items"])
+    "skill_load": lambda **kw: SKILL_LOADER.get_content(kw["name"])
 
 }   
   
@@ -315,7 +322,6 @@ TOOLS = [
         }
 
     }
-    # 此处定义skill工具
 ]    
         
     
