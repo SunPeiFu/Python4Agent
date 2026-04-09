@@ -435,8 +435,11 @@ if __name__ == "__main__":
             query = input("\033[36ms01 >> \033[0m")
         except (EOFError, KeyboardInterrupt):
             print("输入异常",EOFError )     
+            
         if query.strip().lower() in ["q", "exit", ""]:   
             break
+        
+        # 1 添加用户输入到历史记录
         history.append(
             {
                 "role":"user",
@@ -444,19 +447,17 @@ if __name__ == "__main__":
             }
         )
         
+        # 2 计数
         count = count +1 
-        # 调用循环 开始执行
+        
+        # 3 执行
         result = agent_loop(history)
+        
+        # 4 将模型的输出添加到历史记录中 以便下一轮调用模型时可以作为上下文输入
+        history.append({"role": "assistant", "content": result})
         
         print("当前执行循环的次数", count)
         print("当前的历史记录是:", history)
-        
-        # 取最近的一条文本响应 这么写可能报错
-        # response_content = result[-1].get("output", "")
-
-        # if isinstance(response_content, str):
-        #     print("最终的输出结果是:", response_content)
-        #     break
         print("继续执行循环")
 
 
