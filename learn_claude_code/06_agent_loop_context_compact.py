@@ -4,6 +4,7 @@ import subprocess
 from openai import OpenAI
 import json
 import re
+import time
 from pathlib import Path
 
 
@@ -33,6 +34,11 @@ SYSTEM = f"""You are a coding agent at {WORKDIR}.
 Use load_skill to access specialized knowledge before tackling unfamiliar topics.
 """
 
+client = OpenAI(
+        api_key=api_key, 
+        base_url=base_url,
+        timeout=180)
+
 # 预估tokens数
 def estimate_tokens(messages: list) -> int:
     # 4个字符大约占用1个token 先把list转成字符串 字符串的长度整除4 保留整数部分
@@ -40,7 +46,7 @@ def estimate_tokens(messages: list) -> int:
 
 # 第一层压缩
 def micro_compact(messages: list) -> list:
-    
+    # messages是一个列表 元素是字典
     # 收集工具结果 tool_result[]的元数组 role是user content的内容信息&索引
     # tool_result的元组结构 : (msg索引, content索引, content内容)
     tool_result = []
@@ -90,14 +96,42 @@ def micro_compact(messages: list) -> list:
     
 def auto_compact(messages: list) -> list:
     
-    # 创建临时文件夹 和对应文件
+    # 创建临时文件夹 和对应文件(基于时间戳命名)
+    TRANSCRIPT_DIR.mkdir(exist_ok=True)
+    transcript_path = TRANSCRIPT_DIR/f"transcript_{int(time.time())}.json"
     
-    # 循环message 写入文件
+    # 这句什么意思
+    with transcript_path.open("w") as f:
+        # 遍历循环message 写入文件
+        for msg in messages:
+            f.write(json.dumps(msg, default=str) + "\n")
     
-    # 把message转成文本 调用模型 生成晒要 (role(user) content (相关总结提示词 + 整段message文本))
+    # 把完整message转成文本 调用模型 生成晒要 (role(user) content (相关总结提示词 + 整段message文本))
+    conversation_text = json.dumps(messages, default=str) # 此处的default=str是为了处理消息中可能存在的非字符串类型的数据（如datetime对象） 将其转换为字符串格式以便写入文件
     
-    # 组装一个上下文 role user content 模型写入的物理文件地址 +  role assitant content 我已经总结了之前的对话内容 你可以继续调用工具或者输出文本 以此类推
-    return None
+    # 再次调用模型   
+    response = client.responses.create(
+    model=model_id,
+    messages=[{"role": "user", "content":
+            "Summarize this conversation for continuity. Include: "
+            "1) What was accomplished, 2) Current state, 3) Key decisions made. "
+            "Be concise but preserve critical details.\n\n" + conversation_text}],
+    max_tokens=1000) 
+    
+    if not response.output_text:
+        return messages
+    
+    summary = response.output_text.strip()
+    
+    # user中给出具体路径和汇总内容
+    # ✅ 什么时候用user 什么时候用assistant
+    # user -> 用户指令 意图
+    # assistant -> 模型说过的话 展示结果 确认状态 可以通过伪造它 重置模型心智
+    return [
+        {"role": "user", "content": f"[Conversation compressed. Transcript: {transcript_path}]\n\n{summary}"},
+        {"role": "assistant", "content": "Understood. I have the context from the summary. Continuing."},
+    ]
+    
 
 
 
@@ -254,11 +288,6 @@ TOOLS = [
 # The core pattern: a while loop that calls tools until the model stops
 def agent_loop(user_message: list):
     
-    
-    client = OpenAI(
-        api_key=api_key, 
-        base_url=base_url,
-        timeout=180)
     
     response = client.responses.create(
         model=model_id,
