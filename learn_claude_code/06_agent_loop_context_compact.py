@@ -328,6 +328,8 @@ def agent_loop(user_message: list):
 
         # 之后判断预估的message的tokens 超过阈值 出发自动压缩
         if estimate_tokens(user_message) > THRESHOLD:
+            # [:]切片用法 eg messags:[1,2,3,4,5] messages[1,4] -> 返回[2,3,4,5]
+            # 当使用[:] 没有指定start,end和step 对整个列表操作 会修改原始列表(不返回新列表 相当于内存地址修改)
             user_message[:] = auto_compact(user_message)
 
         response = client.responses.create(
@@ -385,9 +387,9 @@ def agent_loop(user_message: list):
                     output = f"unknown tool:{tool_call.name}"
             
                 result = {
-                    #"role": "assistant",
-                    "type": "function_call_output",
-                    "call_id": tool_call.call_id,
+                    "role": "user", # 工具的调用结果 role一定是user而不是assistant
+                    "type": "function_call_output", # type[function_call_output]工具的执行结果
+                    "call_id": tool_call.call_id,# 模型输出的调用工具id 
                     "output": output   # ✅ 注意这里是 output，不是 content 否则调用会报400格式不正确
                 }
                 
