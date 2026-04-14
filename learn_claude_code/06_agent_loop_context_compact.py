@@ -129,9 +129,20 @@ def auto_compact(messages: list) -> list:
     summary = response.output_text.strip()
     
     # user中给出具体路径和汇总内容
-    # ✅ 什么时候用user 什么时候用assistant
+    # 什么时候用user 什么时候用assistant
     # user -> 用户指令 意图
     # assistant -> 模型说过的话 展示结果 确认状态 可以通过伪造它 重置模型心智
+    """
+        此处写法很巧妙 : 重置模型心智
+            # 锚定上下文 
+                # 以user视角 告诉模型之前会话太长了 我压缩汇总了下
+            # 防止模型产生幻觉
+                # 如果只给user的里的摘要信息 不给assistant中的Understood 模型会懵逼因为自己没说过 "伪造一个模型回答的事实"
+            # 建立一致性
+                # 模型看到了自己的回复(伪造) 会基于这个事实继续推理思考 建立一致性    
+                
+    """
+    
     return [
         {"role": "user", "content": f"[Conversation compressed. Transcript: {transcript_path}]\n\n{summary}"},
         {"role": "assistant", "content": "Understood. I have the context from the summary. Continuing."},
