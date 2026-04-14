@@ -45,8 +45,13 @@ def estimate_tokens(messages: list) -> int:
     return len(str(messages)) // 4 
 
 # 第一层压缩
+    """
+        # tool_result封装 
+            # 获取用户(role->user) 调用工具的返回结果(是dict & type -> function_call_output)
+            # 构建元数列表 封装到集合中 方便后续快速检索定位
+    """
 def micro_compact(messages: list) -> list:
-    # messages是一个列表 元素是字典
+    # messages里的元素是字典
     # 收集工具结果 tool_result[]的元数组 role是user content的内容信息&索引
     # tool_result的元组结构 : (msg索引, content索引, content内容)
     tool_result = []
@@ -66,20 +71,20 @@ def micro_compact(messages: list) -> list:
     tool_name_map = {}
     for msg in messages:
         if msg["role"] == "assistant":
-            # 获取助手的信息
+            # assistant是模型调用工具的指令&模型说过话的话(此处是模型调用的工具指令)
             content = msg.get("content",[])
             if isinstance(content, list):
                 for c in content:
                     # 判断对象中的内容
                     if hasattr(c, "type") and c.type == "function_call":
                         # 模型返回的call_id和callname映射
-                        tool_name_map[c.call_id] = c.name
+                        tool_name_map[c.call_id] = c.get("name")
                     
                     
     # 走到这里 超过了阈值 需要取最近的几条 把最近的提几条里的引用对象的content替换成工具名称               
-    latest_result = tool_result[:KEEP_RECENT] # 注意切片操作不会创建新的对象 还是使用之前的对象的引用!!!
-    # 遍历
-    for _, _, latest in latest_result:
+    latest_result = tool_result[:-KEEP_RECENT] # 注意切片操作不会创建新的对象 还是使用之前的对象的引用!!!
+    # 遍历 _, _, 是python的解包写法 代表msg_index和part_index 此处不关心 所以这么写
+    for _, _, latest in latest_result: 
         # 获取内容
         if isinstance(latest.get("content"), str) and len(latest.get("content")) > 100:
             
@@ -87,7 +92,7 @@ def micro_compact(messages: list) -> list:
             # 从tool_name_map中获取工具名称
             tool_name = tool_name_map.get(call_id, "unknown_tool")
             # 替换conten中的key 之前是模型输出的一大堆 现在变成工具名称
-            result["content"] = f"[Previours: userd]{tool_name}"   
+            latest["content"] = f"[Previours: used]{tool_name}"   # Previours: used-> 以前调用的工具名称
      
     # 此处return messages是正确的 因为 latest_result -> tool_result -> messages 都是浅拷贝的结果
     
@@ -211,13 +216,10 @@ TOOL_HANDLERS = {
     "bash":       lambda **kw: run_bash(kw["command"]),
     "read_file":  lambda **kw: run_read(kw["path"], kw.get("limit")),
     "write_file": lambda **kw: run_write(kw["path"], kw["content"]),
-    "edit_file":  lambda **kw: run_edit(kw["path"], kw["old_content"], kw["new_content"])
+    "edit_file":  lambda **kw: run_edit(kw["path"], kw["old_content"], kw["new_content"]),
+    "compact":    lambda **kw: "Manual compression requested." # 定义压缩工具
 }   
-  
-  
-  
-# TODO SPF 增加Tools 和 Tool Handler 以及agent_loop中的判断
-# 定义工具 这些工具的定义是正确的吗
+
 
 TOOLS = [
     {
@@ -281,6 +283,18 @@ TOOLS = [
             "required":["path","old_content","new_content"] # 必输参数 required不能放在properteis里 需要和required平级
         }
 
+    },
+    {
+        # 压缩工具具体描述 无输入参数 只有一个可选参数 focus 让模型知道这次压缩的重点是什么
+        "type":"function", 
+        "name":"compact",
+        "description":"Trigger manual conversation compression.",
+        "parameters":{
+            "type":"object",
+            "properties":{
+                "focus":{"type":"string", "description":"What to preserve in the summary"}
+            }
+        }
     }
 ]    
         
@@ -289,12 +303,6 @@ TOOLS = [
 def agent_loop(user_message: list):
     
     
-    response = client.responses.create(
-        model=model_id,
-        instructions=SYSTEM,
-        input=user_message,
-        tools= TOOLS
-    )
     
     """
     # 核心逻辑 定义while循环
@@ -304,9 +312,19 @@ def agent_loop(user_message: list):
     all_tool_outputs = []
     while True:
         
-        # TODO 上来第一步 先压缩user_message
+        # 上来就压缩
+        micro_compact(user_message)
 
-        # TODO SPF 之后判断预估的message的tokens 超过阈值 出发自动压缩
+        # 之后判断预估的message的tokens 超过阈值 出发自动压缩
+        if estimate_tokens(user_message) > THRESHOLD:
+            user_message[:] = auto_compact(user_message)
+
+        response = client.responses.create(
+            model=model_id,
+            instructions=SYSTEM,
+            input=user_message,
+            tools= TOOLS
+        )
         
         # 等价于
         # tool_calls = []
@@ -334,7 +352,6 @@ def agent_loop(user_message: list):
         
         # 每一轮的模型调用的工具和结果 都需要重新喂给上下文中
         new_tool_outputs= []
-        # TODO SPF 自动出发压缩标识
         manual_compact = False
         for tool_call in tool_calls:
             
@@ -381,7 +398,7 @@ def agent_loop(user_message: list):
         # 模型返回需要压缩 则压缩后再喂给模型            
         if manual_compact:
             messages[:] = manual_compact(messages)
-            
+
                     
         # 再次调用模型   
         response = client.responses.create(
