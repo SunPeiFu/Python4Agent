@@ -33,13 +33,17 @@ client = OpenAI(
     # init -> task_dir&创建文件夹&next_id ✅
     # maxId -> 遍历当前文件下 找出最大的文件id ✅
     # load -> 入参task_id 文件文件路径 读取文件路径 转成字典 ✅
-    # save -> 入参task_id 拼接文件路径 写入文件
-    # create -> 入参 主题/描述
+    # save -> 入参task的字典 save是保存方法 完整的字典信息是create创建的 ✅
+    # create -> 入参 主题/描述 ✅
         # 创建task字典 属性 id/desc/subject/status/blockedBy(前置依赖)/blocks(后置依赖)
         # 调用save
         # nextId + 1 
-    # get -> 入参task_id 读取文件 返回字典
-    # update -> 
+    # get -> 入参task_id 读取文件 返回字典 ✅
+    # clear_dependency -> 入参task_id ✅
+        # 遍历当前文件夹下的所有文件
+        # 查看当前task中blocked是否包含传入task_id(即完成的completed_id) 如果包含remove
+        # 重新保存
+    # update ->  ✅
         # 入参:
             # task_id
             # status [pending, in_progress, complted]
@@ -56,7 +60,6 @@ client = OpenAI(
                 # self.load加载block_id -> 获取属性blockedBy依赖前置任务列表 
                 # 如果当前task_id 不在这个列表中 则添加进去
                 # 保存
-            
             # 最后save
 class TaskManager:
     
@@ -66,6 +69,12 @@ class TaskManager:
         self.path_dir.mkdir(exist_ok = True)
         self.next_id = self.max_id + 1
         
+    def get_path(self, task_id: int) -> Path:
+        path = self.path_dir/f"task_{task_id}.json"
+        if not path:
+            raise f"当前文件不存在 -> {path}"
+        return path    
+        
     # maxId -> 遍历当前文件下 找出最大的文件id
     def max_id(self):
         task_ids = []
@@ -74,14 +83,142 @@ class TaskManager:
             task_id = int(f.stem.split("_")[1])
             task_ids.append(task_id)
         return max(task_ids) if task_ids else 0
-    
     # load -> 入参task_id 文件文件路径 读取文件路径 转成字典
     def load(self, task_id: int) -> dict :  
-        path = self.path_dir/f"task_{task_id}.json"
-        if not path:
-            raise f"当前文件不存在 -> {path}"
-        return json.load(path.read_text())
+        path = self.get_path(task_id)
+        return json.loads(path.read_text())
     
+    # save -> 入参task的字典 save是保存方法 完整的字典信息是create创建的
+    def save(self, task: dict):
+        task_id = task.get("id", None)
+        if not task_id:
+            raise f"保存task失败 未获取到taskId 原始信息:{task}"
+        # 拼接文件路径
+        path = self.path_dir/f"task_{task_id}.json"
+        path.write_text(json.dumps(task, indent=2))
+
+    def create (self, 
+                subject: str,
+                descripiton: str,
+                blockedBy: list, # 前置依赖
+                blocks: list) -> str: # 后置依赖
+        
+        # 定义task结构
+        task = {
+            "id" : self.next_id,
+            "subject" : subject,
+            "descripiton" : descripiton,
+            "blockedBy" : blockedBy,
+            "blocks" : blocks
+        }
+        
+        # 保存
+        self.save(task)
+        
+        # nextId更新+1
+        self.next_id += 1
+        
+        # 返回字符串
+        return json.dumps(task, indent=2)
+    
+    def get(self, task_id : int) -> str:
+        task_dict = self.load(task_id)
+        return json.dumps(task_dict, indent=2)
+    
+    def clear_dependency(self, completed_id: int):
+        # 遍历当前所有文件夹
+        for f in self.path_dir.glob("task_*.json"):
+            # 此处直接转换成json即可
+            task = json.loads(f.read_text())
+            blockedBy = task.get("blockedBy", [])
+            
+            if not blockedBy:
+                continue
+            
+            if completed_id in blockedBy:
+                blockedBy.remove(completed_id)
+                self.save(task)
+
+    def update(self,
+               task_id:int,
+               status:str,
+               add_blocked_by: list,
+               add_blocks:list) -> str:
+        
+        task = self.load(task_id)
+        if not task:
+            raise f"未加载到指定task taskId: {task_id}"
+        
+        
+    
+        # 处理状态
+        if status:
+            
+            if status not in ["pending", "in_progess", "completed"]:
+                raise f"状态非法"
+            
+            task["status"] = status
+        
+            # 如果当前任务已完成 把其他前置依赖中包含这个任务id的清除
+            if "completed" == status:
+                self.clear_dependency(task_id)
+            
+            
+        if add_blocked_by:
+            # 第一种 
+            task["blockedBy"] = list(set(task.get("blockedBy",[]) + add_blocked_by))
+            
+            # 第二种不能用
+            #blockedBy = list(task.get("blockedBy",[]))
+            # 不能使用append, extend, remove, sort等的原因 
+                # 不能使用append方法会返回None 导致set直接报错
+                # append是将整体作为一个元素拼接进入 假设之前[1,2] 要拼接的是[3,4] 直接调用append 会得到[1,2,[3,4]]
+            #task["blockedBy"] = list(set(blockedBy.append(add_blocked_by)))
+            
+        if add_blocks:
+            
+            # 追加后置任务             
+            task["blocks"] = list(set(task.get("blocks",[]) + add_blocks))   
+            
+            # 遍历添加进来的后置任务 如果后置任务中的前置任务不包含当前task_id 则追加到前置任务重
+            for block_id in add_blocks:
+                block_task = self.load(block_id)
+                if not block_task:
+                     continue
+                 # 如果添加进来的所有后置任务的前置任务不包含当前task_id 则添加进去
+                blockedBy = list(block_task.get("blockedBy",[]))
+                if task_id not in blockedBy:
+                     blockedBy.append(task_id)
+                     self.save(block_task)
+
+        self.save(task)
+        
+        return json.dumps(task, indent=2)
+    
+    def list_all(self):
+        
+        tasks = []
+        # 加载当前文件夹下的所有文件
+        for f in self.path_dir.glob("task_*.json"):
+            # 转成字典
+            task = json.loads(f.read_text())
+            tasks.append(task)
+        if not tasks:
+            return "no tasks"
+        
+        lines = []
+        for f in tasks:
+            
+            # maker -> 状态标识位 状态标识符可视化 方便模型快速理解
+            marker = {"pending":"[ ]", "in_progress":"[>]", "completed":"[x]"}.get(f["status"], "[?]")
+            # blocked
+            blocked = f"(blocked by {f["blockedBy"]})" if f.get("blockedBy") else ""
+            lines.append(f"{marker} #{f["status"]} : {f["subject"]} {blocked} ")
+        
+        return "\n".join(lines)
+    
+
+            
  # 定义ToolHandler和Tool
  
 
@@ -164,7 +301,12 @@ TOOL_HANDLERS = {
     "read_file":  lambda **kw: run_read(kw["path"], kw.get("limit")),
     "write_file": lambda **kw: run_write(kw["path"], kw["content"]),
     "edit_file":  lambda **kw: run_edit(kw["path"], kw["old_content"], kw["new_content"]),
-    "compact":    lambda **kw: "Manual compression requested." # 定义压缩工具
+    "edit_file":  lambda **kw: run_edit(kw["path"], kw["old_content"], kw["new_content"]),
+    "task_create": lambda **kw: TaskManager.create(kw["subject"], kw.get("descripiton", "")),
+    "task_update": lambda **kw: TaskManager.update(kw["task_id"], kw.get("status"), kw.get("add_blocked_by"), kw.get("add_blocks")),
+    "task_list":   lambda **kw: TaskManager.list_all(),
+    "task_get":    lambda **kw: TaskManager.get(kw["task_id"]),
+
 }   
 
 
@@ -240,6 +382,71 @@ TOOLS = [
             "type":"object",
             "properties":{
                 "focus":{"type":"string", "description":"What to preserve in the summary"}
+            }
+        }
+    },
+    
+    # 四个工具 task_list / task_get / task_create / task_update
+    {
+        # 压缩工具具体描述 无输入参数 只有一个可选参数 focus 让模型知道这次压缩的重点是什么
+        "type":"function", 
+        "name":"task_list",
+        "description":"List all tasks with status summary.",
+        "parameters":{}
+        
+    },
+    
+    {
+        # 压缩工具具体描述 无输入参数 只有一个可选参数 focus 让模型知道这次压缩的重点是什么
+        "type":"function", 
+        "name":"task_get",
+        "description":"Get full details of a task by ID.",
+        "parameters":{
+            "type":"object",
+            "properties":{
+                "task_id":{"type":"integer", "description":"What to preserve in the summary"}
+            },
+            "required":["task_id"] #required不能放在properteis里 需要和required平级
+
+        }
+    },
+    
+    {
+        "type":"function", 
+        "name":"task_create",
+        "description":"Create a new task.",
+        "parameters":{
+            "type":"object",
+            "properties":{
+                "items":{
+                    "type":"object", # 数组字段
+                    "properties":{
+                        "subject":{"type":"string"},
+                        "description":{"type":"string"}
+                    },
+                    "required":["subject"]
+                }
+            }
+        }
+    },
+    
+    {
+        "type":"function", 
+        "name":"task_update",
+        "description":"Update a task's status or dependencies.",
+        "parameters":{
+            "type":"object",
+            "properties":{
+                "items":{
+                    "type":"object", # 数组字段
+                    "properties":{
+                        "task_id":{"type":"integer"},
+                        "status":{"type":"string", "enum":["pending","in_progress","completed"]},
+                        "add_blocked_by":{"type":"array", "items":{"type": "integer"}},
+                        "add_blocks":{"type":"array", "items":{"type": "integer"}}
+                    },
+                    "required":["task_id","status"]
+                }
             }
         }
     }
