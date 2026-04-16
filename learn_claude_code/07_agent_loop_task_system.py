@@ -107,6 +107,7 @@ class TaskManager:
         task = {
             "id" : self.next_id,
             "subject" : subject,
+            "status":"pending",
             "description" : description,
             "blockedBy" : blockedBy,
             "blocks" : blocks

@@ -3,5 +3,6 @@
   "subject": "Setup project",
   "description": "Initialize the project structure and configuration",
   "blockedBy": [],
-  "blocks": []
+  "blocks": [],
+  "status":"pending"
 }
