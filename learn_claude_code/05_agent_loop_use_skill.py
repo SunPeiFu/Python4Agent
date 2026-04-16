@@ -6,6 +6,9 @@ import json
 import re
 from pathlib import Path
 
+# 核心总结
+ # system提示词加载项目下的所有skill描述
+ # tool_handlers 中定义工具 getSkillContent 参数只有skillName 模型根据descripition决定调用加载什么skill
 
 """
 skill设计理念
