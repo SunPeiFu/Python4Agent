@@ -12,7 +12,7 @@ WORKDIR = Path.cwd()
 print("当前的工作目录是:", WORKDIR)
 
 # task文件存放路径
-TASK_DIR = WORKDIR /"learn_claude_code"/"task"
+TASK_DIR = WORKDIR/"task"
 
 api_key = "sk-qFvDkFk22zpWFpVWLGjHtBXwIH1wekq11pZNzLz0e582pl0v"
 base_url = "https://api.lotte-library.top/v1"
@@ -67,7 +67,7 @@ class TaskManager:
     def __init__(self, path_dir: Path):
         self.path_dir = path_dir
         self.path_dir.mkdir(exist_ok = True)
-        self.next_id = self.max_id + 1
+        self.next_id = self.max_id() + 1
         
     def get_path(self, task_id: int) -> Path:
         path = self.path_dir/f"task_{task_id}.json"
@@ -76,7 +76,7 @@ class TaskManager:
         return path    
         
     # maxId -> 遍历当前文件下 找出最大的文件id
-    def max_id(self):
+    def max_id(self) -> int:
         task_ids = []
         for f in self.path_dir.glob("**/*.task_*.json"):
             # 按照_切割 取第二个即taskId
@@ -99,7 +99,7 @@ class TaskManager:
 
     def create (self, 
                 subject: str,
-                descripiton: str,
+                description: str,
                 blockedBy: list, # 前置依赖
                 blocks: list) -> str: # 后置依赖
         
@@ -107,7 +107,7 @@ class TaskManager:
         task = {
             "id" : self.next_id,
             "subject" : subject,
-            "descripiton" : descripiton,
+            "description" : description,
             "blockedBy" : blockedBy,
             "blocks" : blocks
         }
@@ -142,8 +142,8 @@ class TaskManager:
     def update(self,
                task_id:int,
                status:str,
-               add_blocked_by: list,
-               add_blocks:list) -> str:
+               blockedBy: list,
+               blocks:list) -> str:
         
         task = self.load(task_id)
         if not task:
@@ -164,9 +164,9 @@ class TaskManager:
                 self.clear_dependency(task_id)
             
             
-        if add_blocked_by:
+        if blockedBy:
             # 第一种 
-            task["blockedBy"] = list(set(task.get("blockedBy",[]) + add_blocked_by))
+            task["blockedBy"] = list(set(task.get("blockedBy",[]) + blockedBy))
             
             # 第二种不能用
             #blockedBy = list(task.get("blockedBy",[]))
@@ -175,13 +175,13 @@ class TaskManager:
                 # append是将整体作为一个元素拼接进入 假设之前[1,2] 要拼接的是[3,4] 直接调用append 会得到[1,2,[3,4]]
             #task["blockedBy"] = list(set(blockedBy.append(add_blocked_by)))
             
-        if add_blocks:
+        if blocks:
             
             # 追加后置任务             
-            task["blocks"] = list(set(task.get("blocks",[]) + add_blocks))   
+            task["blocks"] = list(set(task.get("blocks",[]) + blocks))   
             
             # 遍历添加进来的后置任务 如果后置任务中的前置任务不包含当前task_id 则追加到前置任务重
-            for block_id in add_blocks:
+            for block_id in blocks:
                 block_task = self.load(block_id)
                 if not block_task:
                      continue
@@ -209,11 +209,15 @@ class TaskManager:
         lines = []
         for f in tasks:
             
-            # maker -> 状态标识位 状态标识符可视化 方便模型快速理解
+            # maker -> 状态标识位 状态标识符可视化 方便模型快速理解 # 这块的写法没理解
             marker = {"pending":"[ ]", "in_progress":"[>]", "completed":"[x]"}.get(f["status"], "[?]")
             # blocked
-            blocked = f"(blocked by {f["blockedBy"]})" if f.get("blockedBy") else ""
-            lines.append(f"{marker} #{f["status"]} : {f["subject"]} {blocked} ")
+            blockedBy = f.get("blockedBy", "")
+            status = f.get("status", "")
+            subject = f.get("subject", "")
+
+            blocked = f"(blocked by {blockedBy})"
+            lines.append(f"{marker} #{status} : {subject} {blocked} ")
         
         return "\n".join(lines)
     
@@ -222,6 +226,7 @@ class TaskManager:
  # 定义ToolHandler和Tool
  
 
+task_manager = TaskManager(TASK_DIR)
 
 
 # 定义5个方法 
@@ -302,10 +307,14 @@ TOOL_HANDLERS = {
     "write_file": lambda **kw: run_write(kw["path"], kw["content"]),
     "edit_file":  lambda **kw: run_edit(kw["path"], kw["old_content"], kw["new_content"]),
     "edit_file":  lambda **kw: run_edit(kw["path"], kw["old_content"], kw["new_content"]),
-    "task_create": lambda **kw: TaskManager.create(kw["subject"], kw.get("descripiton", "")),
-    "task_update": lambda **kw: TaskManager.update(kw["task_id"], kw.get("status"), kw.get("add_blocked_by"), kw.get("add_blocks")),
-    "task_list":   lambda **kw: TaskManager.list_all(),
-    "task_get":    lambda **kw: TaskManager.get(kw["task_id"]),
+    "task_create": lambda **kw: task_manager.create(kw["subject"], 
+                                                   kw.get("description", ""),
+                                                   kw.get("blockedBy",[]), # 模型首次调用 可能没有前置依赖 不加默认值真实调用会create会报错
+                                                   kw.get("blocks",[]) # 模型首次调用 可能没有前置依赖 不加默认值真实调用会create会报错
+                                                   ),
+    "task_update": lambda **kw: task_manager.update(kw["task_id"], kw.get("status"), kw.get("blockedBy"), kw.get("blocks")),
+    "task_list":   lambda **kw: task_manager.list_all(),
+    "task_get":    lambda **kw: task_manager.get(kw["task_id"]),
 
 }   
 
@@ -418,15 +427,12 @@ TOOLS = [
         "parameters":{
             "type":"object",
             "properties":{
-                "items":{
-                    "type":"object", # 数组字段
-                    "properties":{
-                        "subject":{"type":"string"},
-                        "description":{"type":"string"}
-                    },
-                    "required":["subject"]
-                }
-            }
+                "subject":{"type":"string"},
+                "description":{"type":"string"},
+                "blockedBy":{"type":"array", "items":{"type": "integer"}},
+                "blocks":{"type":"array", "items":{"type": "integer"}}   
+            },
+            "required":["subject"]
         }
     },
     
@@ -437,16 +443,16 @@ TOOLS = [
         "parameters":{
             "type":"object",
             "properties":{
-                "items":{
-                    "type":"object", # 数组字段
-                    "properties":{
-                        "task_id":{"type":"integer"},
-                        "status":{"type":"string", "enum":["pending","in_progress","completed"]},
-                        "add_blocked_by":{"type":"array", "items":{"type": "integer"}},
-                        "add_blocks":{"type":"array", "items":{"type": "integer"}}
-                    },
-                    "required":["task_id","status"]
-                }
+
+                "type":"object", # 数组字段
+                "properties":{
+                    "task_id":{"type":"integer"},
+                    "status":{"type":"string", "enum":["pending","in_progress","completed"]},
+                    "blockedBy":{"type":"array", "items":{"type": "integer"}},
+                    "blocks":{"type":"array", "items":{"type": "integer"}}
+                },
+                "required":["task_id","status"]
+                
             }
         }
     }
