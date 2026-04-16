@@ -7,6 +7,9 @@ import re
 import time
 from pathlib import Path
 
+# 核心主旨
+    # context有限 有模型工具的调用结果和推理压缩
+    # 生成摘要汇总信息 重置模型心智
 
 """
 上下文压缩
