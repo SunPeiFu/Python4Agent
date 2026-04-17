@@ -7,6 +7,8 @@ import re
 import time
 from pathlib import Path
 
+# 核心主旨
+    # 任务管理器 维护创建任务的CRUD, 状态, 前置,后置任务id
 
 WORKDIR = Path.cwd()
 print("当前的工作目录是:", WORKDIR)
