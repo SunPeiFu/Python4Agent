@@ -32,6 +32,9 @@ Use task tools to plan and track work
 Use load_skill to access specialized knowledge before tackling unfamiliar topics.
 """
 
+
+
+
 client = OpenAI(
         api_key=api_key, 
         base_url=base_url,
