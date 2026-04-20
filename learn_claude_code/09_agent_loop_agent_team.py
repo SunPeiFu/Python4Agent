@@ -47,6 +47,41 @@ client = OpenAI(
         base_url=base_url,
         timeout=180)
 
+# MessageBus消息总线
+    # int方法 ✅
+    # send方法 返回str ✅
+        # 参数
+            # from 
+            # to
+            # msg_type
+            # content
+            # extra
+        # 逻辑
+            # 校验msg_type是否合法
+            # 定义msg结构类型 type, from, content, time
+            # 如果有extra扩展信息 则msg.update
+            # 维护self.dir/{to}.json文件 写入msg(json.dumps形式)
+            # return "sent {msg_type} to {to}"    
+    # read方法 返回list ✅ 
+        # 参数
+            # name
+        # 逻辑
+            # self.dir/{name}.json
+            # 校验文件是否存在 空返回[]
+            # 遍历读取文件每一行 if line , json.loads() append到messages中
+            # 遍历结束 清空当前文件文本(保持干净)
+            # return messages
+    # broadcast 返回str (广播了几个人) ✅
+        # 参数
+            # sender
+            # content
+            # teammates (list)
+        # 逻辑
+            # 定义count
+            # 遍历teammates if name不是send
+            # 调用self.send方法 msg_type传入(broadcast)
+            # 计数器+1
+            # 返回广播了几个人
 class MessageBus:
 
     def __init__(self,inbox_dir : Path):
@@ -119,41 +154,7 @@ class MessageBus:
                 return f"Broadcast to {count} teammates"
   
         
-# MessageBus消息总线
-    # int方法 ✅
-    # send方法 返回str ✅
-        # 参数
-            # from 
-            # to
-            # msg_type
-            # content
-            # extra
-        # 逻辑
-            # 校验msg_type是否合法
-            # 定义msg结构类型 type, from, content, time
-            # 如果有extra扩展信息 则msg.update
-            # 维护self.dir/{to}.json文件 写入msg(json.dumps形式)
-            # return "sent {msg_type} to {to}"    
-    # read方法 返回list
-        # 参数
-            # name
-        # 逻辑
-            # self.dir/{name}.json
-            # 校验文件是否存在 空返回[]
-            # 遍历读取文件每一行 if line , json.loads() append到messages中
-            # 遍历结束 清空当前文件文本(保持干净)
-            # return messages
-    # broadcast 返回str (广播了几个人)
-        # 参数
-            # sender
-            # content
-            # teammates (list)
-        # 逻辑
-            # 定义count
-            # 遍历teammates if name不是send
-            # 调用self.send方法 msg_type传入(broadcast)
-            # 计数器+1
-            # 返回广播了几个人
+
 
 
 # TeamManager
