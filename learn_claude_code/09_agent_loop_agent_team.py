@@ -32,6 +32,13 @@ Use task tools to plan and track work
 Use load_skill to access specialized knowledge before tackling unfamiliar topics.
 """
 
+VALID_MSG_TYPES = {
+    "message",
+    "broadcast",
+    "shutdown_request",
+    "shutdown_response",
+    "plan_approval_response",
+}
 
 
 
@@ -40,9 +47,81 @@ client = OpenAI(
         base_url=base_url,
         timeout=180)
 
+class MessageBus:
+
+    def __init__(self,inbox_dir : Path):
+        self.dir = inbox_dir
+        # parents -> 如果a/b/inbox_dir, ab不存在 则自动创建 不报错
+        # exist -> 目录存在继续
+        self.dir.mkdir(exist_ok = True, parents=True)
+
+    def send(self,
+             sender : str,
+             to : str,
+             msg_type : str,
+             content : str,
+             extra : dict | None) -> str:
+        
+        if msg_type not in VALID_MSG_TYPES :
+                return f"Error: Invalid type '{msg_type}'. Valid: {VALID_MSG_TYPES}"
+        
+        msg = {
+                "type" : msg_type,
+                "from" : sender,
+                "content" : content,
+                "time" : time.time()
+            }
+        
+        # 根据key merge
+        if extra:
+            msg.update(extra)
+
+        inbox_path = self.dir/f"{to}.json"
+        # 此处a 代表apend mode模式 即追加模式
+        with open(inbox_path, "a") as f:
+            # 每次写入换行 保证行清晰
+            f.write(json.dumps(msg) + "\n")
+
+        return f"sent {msg_type} to {to}"    
+    
+    def read(self, name : str) -> list:
+
+        inbox_path = self.dir/f"{name}.json"
+
+        messages = []
+        if not inbox_path.exists():
+            return f"read file path is not exist {inbox_path}"
+        for line in inbox_path.read_text().strip().splitlines:
+            if line:
+                messages.append(json.loads(line))
+        # 清空  
+        inbox_path.write_text("")
+        return messages
+    
+    def broadcast(self,
+                  sender : str,
+                  content : str,
+                  teammates: list) -> str:
+        
+        if not teammates:
+            return "broadcast is empty "
+        
+        count = 0
+        for team_name in teammates:
+            if sender != team_name:
+                self.send(
+                    sender = sender,
+                    to = team_name,
+                    msg_type = "broadcast",
+                    content = content,
+                )
+                count += 1
+                return f"Broadcast to {count} teammates"
+  
+        
 # MessageBus消息总线
-    # int方法
-    # send方法 返回str
+    # int方法 ✅
+    # send方法 返回str ✅
         # 参数
             # from 
             # to
