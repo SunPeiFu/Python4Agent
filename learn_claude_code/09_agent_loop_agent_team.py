@@ -21,6 +21,8 @@ print("当前的工作目录是:", WORKDIR)
 
 # task文件存放路径
 TASK_DIR = WORKDIR/"task"
+TEAM_DIR = WORKDIR / ".team"
+INBOX_DIR = TEAM_DIR / "inbox"
 
 api_key = "sk-qFvDkFk22zpWFpVWLGjHtBXwIH1wekq11pZNzLz0e582pl0v"
 base_url = "https://api.lotte-library.top/v1"
@@ -153,12 +155,254 @@ class MessageBus:
                 count += 1
                 return f"Broadcast to {count} teammates"
   
-        
-
-
+BUS = MessageBus(INBOX_DIR)
+     
 
 # TeamManager
+    # init方法 ✅
+        # dir
+        # mkdir
+        # config_path
+        # self.config = self.load_config()
+        # threads
+    # load_config -> dict ✅
+        # 判断config_path是否存在 存在返回json.loads(self.read_text())   
+        # 不存在返回默认字典 team_name(default), member=[]
+    # save_config ✅
+        # self.config_path.wirte_text(json.dumps(self.config())
+    # find_members: -> dict 成员字典✅
+        # 入参 name
+        # 遍历m self.config("members")
+        # if m.["name"] == name return else None
+    # 创建队友并在线程中启动 -> str
+        # 入参
+            # name role prompt 
+        # member = self.find_members
+        # if member
+            # 判断状态 如果不是 idle, shuntdown
+                # return current member status is 
+            # 赋值 member["status"] = 入参状态 角色=入参
+        # else 
+            # 创建member对象member =  name role status("working")
+            # self.config["members"].append(member)
+        # self.save_config()
+        # 定义线程, 调用agent_loop方法 传入参数 name role prompt
+        # 启动线程
+    # agent_loop方法
+        # 定义system prompt name role 工作空间
+        # 定义messages  [] 默认赋值字典 role:user content:content
+        # self.teammate_tools()
+        # 从0开始循环50次
+            # Bus.read_inbox(name) 返回列表
+            # for inbox_content in list  , messags append user content 
+        # 调用模型 传入sys messages等
+        # 之前的逻辑 把模型的结果加入到上下文中
+        # self.find_member("name")
+        # if member and member status  != shutdown
+            # member["status"] = "idle"
+            # self.save_config()
+    # exe方法
+        # 参数 send ,too_name, args(字典)
+        # 判断 too_name 不同的工具名称 调用不同方法  
+    # teammate_tools(self) - list:
+        # 定义数组字典工具 多加了send_message和read_inbox
+    # list_all方法
+        # lines 拼接 self.config.team_name    
+        # self.config.["members"] 遍历字典 lines拼接 name role status
+        # return \n.join(lines)
+    # member_names方法
+        # 遍历self.config[members] 直接使用return [for] 方式初始化    
+class TeammateManager:
 
+    # 初始化
+    def __init__(self, team_dir : Path):
+        self.dir = team_dir
+        self.dir.mkdir(exist_ok= True, parents=True)
+        self.config_path = self.dir/"config.json"
+        threads = []
+        self.config = self.load_config()
+
+    # 加载配置
+    def load_config(self) -> dict:  
+        if self.dir.exists():  
+            return json.loads(self.config_path.read_text())
+        return {"team_name":"default", "members" : []}
+    
+    def save_config(self):
+        self.config_path.write_text(json.dumps(self.config))
+
+    def find_members(self, name : str) -> dict:    
+        for m in self.config["members"]:
+            if m["name"] == name:
+                return m
+        return None    
+    
+    def spawn(self,
+              name : str,
+              role : str,
+              prompt : str) -> str:
+        
+        member = self.find_members(name)
+        if member:
+            if member["status"] not in ["idle", "shuntdown"]:
+                return f"current member status is un support "
+            member["status"] = ""
+        else :
+            member = {"name":name, "role":role, "status":"working"}
+            self.config["members"].update(member)
+        self.save_config()
+        thread = threading.Thread(
+            target=self
+            args=(name, role, prompt),
+            daemon=True
+        )
+        thread.start()
+        return f"Spawned '{name}' (role: {role})"
+    
+    def _exec(self, sender: str, tool_name: str, args: dict) -> str:
+        # these base tools are unchanged from s02
+        if tool_name == "bash":
+            return run_bash(args["command"])
+        if tool_name == "read_file":
+            return run_read(args["path"])
+        if tool_name == "write_file":
+            return run_write(args["path"], args["content"])
+        if tool_name == "edit_file":
+            return run_edit(args["path"], args["old_text"], args["new_text"])
+        if tool_name == "send_message":
+            return BUS.send(sender, args["to"], args["content"], args.get("msg_type", "message"))
+        if tool_name == "read_inbox":
+            return json.dumps(BUS.read_inbox(sender), indent=2)
+        return f"Unknown tool: {tool_name}"
+
+    def _teammate_tools(self) -> list:
+        # these base tools are unchanged from s02
+        return [
+            {"name": "bash", "description": "Run a shell command.",
+             "input_schema": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]}},
+            {"name": "read_file", "description": "Read file contents.",
+             "input_schema": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}},
+            {"name": "write_file", "description": "Write content to file.",
+             "input_schema": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}}, "required": ["path", "content"]}},
+            {"name": "edit_file", "description": "Replace exact text in file.",
+             "input_schema": {"type": "object", "properties": {"path": {"type": "string"}, "old_text": {"type": "string"}, "new_text": {"type": "string"}}, "required": ["path", "old_text", "new_text"]}},
+            {"name": "send_message", "description": "Send message to a teammate.",
+             "input_schema": {"type": "object", "properties": {"to": {"type": "string"}, "content": {"type": "string"}, "msg_type": {"type": "string", "enum": list(VALID_MSG_TYPES)}}, "required": ["to", "content"]}},
+            {"name": "read_inbox", "description": "Read and drain your inbox.",
+             "input_schema": {"type": "object", "properties": {}}},
+        ]
+    
+    def agent_loop(self, name : str, role : str , prompt : str):
+    
+    # 定义system name role 和工作目录
+        sys_prompt = (
+                f"You are '{name}', role: {role}, at {WORKDIR}. "
+                f"Use send_message to communicate. Complete your task."
+            )
+        # 初始化上下文 
+        messages = [{"role":"user", "content": prompt}]
+        tools = self._teammate_tools()
+
+        client = OpenAI(
+            api_key=api_key, 
+            base_url=base_url,
+            timeout=180)
+        
+        
+        
+        all_tool_outputs = []
+        for _ in range(50):
+
+            inbox = BUS.read(name)
+            for m in inbox:
+
+                messages.append({"role":"user", "content":json.dumps(m)})
+
+                response = client.responses.create(
+                model=model_id,
+                instructions=SYSTEM,
+                sys_prompt = sys_prompt,
+                input=messages,
+                tools=tools
+                tools= TOOLS
+            )
+            
+            
+            
+            print("返回的结果类型是response type:", type(response))
+            print("返回response 内容是:", response)
+
+            # 获取模型返回的调用工具列表
+            tool_calls = [item for item in response.output if item.type == "function_call"]
+            print("模型返回的工具调用列表是:", tool_calls)
+            
+            # 如果模型返回的工具为空 说明不需要调用工具 已经结束
+            if not tool_calls:
+                # 为了更严谨的判断 如果工具为空 all_tool_outpus中获取
+                if all_tool_outputs:
+                    last_tool_output = all_tool_outputs[-1]
+                    print("工具调用结果不为空 取最后一次调用工具的结果作为最终输出: ", last_tool_output)
+                    return last_tool_output.get("output", response.output_text) # 此处的response.output_text是为了兼容没有工具调用结果的情况
+            
+                print("当前的是空的 直接返回!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                return response.output_text
+            
+            
+            # 每一轮的模型调用的工具和结果 都需要重新喂给上下文中
+            new_tool_outputs= []
+            for tool_call in tool_calls:
+                
+                # 解析工具调用参数
+                arguments = json.loads(tool_call.arguments)
+                # 如果类型是functionCall(需要调用工具)
+                if "function_call" == tool_call.type:
+                    print("进入function_call逻辑模型调用的工具是: ", tool_call.name)
+                    handler = TOOL_HANDLERS.get(tool_call.name)
+                    print("当前的handler是: ", handler)
+                    
+                    if handler:
+                        output = handler(**arguments)
+                        print("模型调用工具的结果是: ", output)
+                    else:
+                        output = f"unknown tool:{tool_call.name}"
+                
+                    result = {
+                        "role": "tool", # 工具的调用输出结果 role使用tool
+                        "type": "function_call_output", # type[function_call_output]工具的执行结果
+                        "call_id": tool_call.call_id,# 模型输出的调用工具id 
+                        "output": output   # ✅ 注意这里是 output，output代表工具执行的结果 ? 不是 content 否则调用会报400格式不正确
+                    }
+                    
+                    # 拼接每次调用工具的结果 作为下一轮模型调用的输入
+                    new_tool_outputs.append(result)
+                    
+                else:
+                    # 此处应该continue是否更合理
+                    print("模型返回的工具调用类型不是function_call, 不执行工具调用逻辑, 直接返回文本结果")
+                    return response.output_text         
+                    
+            # 此处的上下文 拼接在for最外层 也就是每次模型调用工具的结果 
+            # 都需要添加到上下文中 让模型知道工具调用的结果是什么 以便下一轮调用工具或者输出文本
+            # !!!! 此处的缩进很关键 在while上面  messages即可理解成上下文context 包含(用户输入+模型调用工具&工具执行结果)
+            all_tool_outputs.extend(new_tool_outputs)  
+            messages = user_message.copy()
+            messages.extend(all_tool_outputs)
+                
+                        
+            # 再次调用模型   
+            response = client.responses.create(
+            model=model_id,
+            instructions=SYSTEM,
+            #input=user_message,
+            input=messages,
+            tools= TOOLS)    
+        member = self.find_members(name)    
+        if member and member["status"] != "shutdown":
+            member["status"] = "idle"
+            self._save_config()
+
+TEAM = TeammateManager(TEAM_DIR)
+     
 
 
 # 定义5个方法 
@@ -239,9 +483,7 @@ TOOL_HANDLERS = {
     "write_file": lambda **kw: run_write(kw["path"], kw["content"]),
     "edit_file":  lambda **kw: run_edit(kw["path"], kw["old_content"], kw["new_content"]),
     "edit_file":  lambda **kw: run_edit(kw["path"], kw["old_content"], kw["new_content"]),
-    # 两个task工具 一个执行一个查看状态
-    "run_task":  lambda **kw: bg_manager.background_run_task(kw["command"]),
-    "check_task":  lambda **kw: bg_manager.background_check_task(kw["task_id"]),
+    
 }   
 
 
@@ -343,116 +585,7 @@ TOOLS = [
         
     
 # The core pattern: a while loop that calls tools until the model stops
-def agent_loop(user_message: list):
-    
-    client = OpenAI(
-        api_key=api_key, 
-        base_url=base_url,
-        timeout=180)
-    
-    response = client.responses.create(
-        model=model_id,
-        instructions=SYSTEM,
-        input=user_message,
-        tools= TOOLS
-    )
-    
-    all_tool_outputs = []
-    while True:
-        
-        back_task_list = bg_manager.background_drain_notification()
-        lines = []
-        for task in back_task_list:
-            task_id = task.get("task_id", status)
-            status = task.get("result", status)
-            result = task.get("result", None)
-            command = task.get("command", None)
-            lines.append(
-                f"task_id:{task_id} command:{command} result:{result} status:{status}"
-            )
-        task_info_list = "\n".join(lines)
-        # 重置模型心智 模拟输入
-        user_input = {
-                    "role": "user",
-                    "content": f"<background-results>\n{task_info_list}\n</background-results>"
-                }
-        # 重置模型心智 mock模型的响应
-        assistant_out = {
-                    "role": "assistant",
-                    "content": "Noted background results."
-                }
-        all_tool_outputs.append(user_input)
-        all_tool_outputs.append(assistant_out)
 
-        
-        
-        print("返回的结果类型是response type:", type(response))
-        print("返回response 内容是:", response)
-
-        # 获取模型返回的调用工具列表
-        tool_calls = [item for item in response.output if item.type == "function_call"]
-        print("模型返回的工具调用列表是:", tool_calls)
-        
-        # 如果模型返回的工具为空 说明不需要调用工具 已经结束
-        if not tool_calls:
-            # 为了更严谨的判断 如果工具为空 all_tool_outpus中获取
-            if all_tool_outputs:
-                last_tool_output = all_tool_outputs[-1]
-                print("工具调用结果不为空 取最后一次调用工具的结果作为最终输出: ", last_tool_output)
-                return last_tool_output.get("output", response.output_text) # 此处的response.output_text是为了兼容没有工具调用结果的情况
-        
-            print("当前的是空的 直接返回!!!!!!!!!!!!!!!!!!!!!!!!!!")
-            return response.output_text
-        
-        
-        # 每一轮的模型调用的工具和结果 都需要重新喂给上下文中
-        new_tool_outputs= []
-        for tool_call in tool_calls:
-            
-            # 解析工具调用参数
-            arguments = json.loads(tool_call.arguments)
-            # 如果类型是functionCall(需要调用工具)
-            if "function_call" == tool_call.type:
-                print("进入function_call逻辑模型调用的工具是: ", tool_call.name)
-                handler = TOOL_HANDLERS.get(tool_call.name)
-                print("当前的handler是: ", handler)
-                
-                if handler:
-                    output = handler(**arguments)
-                    print("模型调用工具的结果是: ", output)
-                else:
-                    output = f"unknown tool:{tool_call.name}"
-            
-                result = {
-                    "role": "tool", # 工具的调用输出结果 role使用tool
-                    "type": "function_call_output", # type[function_call_output]工具的执行结果
-                    "call_id": tool_call.call_id,# 模型输出的调用工具id 
-                    "output": output   # ✅ 注意这里是 output，output代表工具执行的结果 ? 不是 content 否则调用会报400格式不正确
-                }
-                
-                # 拼接每次调用工具的结果 作为下一轮模型调用的输入
-                new_tool_outputs.append(result)
-                
-            else:
-                # 此处应该continue是否更合理
-                print("模型返回的工具调用类型不是function_call, 不执行工具调用逻辑, 直接返回文本结果")
-                return response.output_text         
-                 
-        # 此处的上下文 拼接在for最外层 也就是每次模型调用工具的结果 
-        # 都需要添加到上下文中 让模型知道工具调用的结果是什么 以便下一轮调用工具或者输出文本
-        # !!!! 此处的缩进很关键 在while上面  messages即可理解成上下文context 包含(用户输入+模型调用工具&工具执行结果)
-        all_tool_outputs.extend(new_tool_outputs)  
-        messages = user_message.copy()
-        messages.extend(all_tool_outputs)
-               
-                    
-        # 再次调用模型   
-        response = client.responses.create(
-        model=model_id,
-        instructions=SYSTEM,
-        #input=user_message,
-        input=messages,
-        tools= TOOLS)    
                 
                 
             
