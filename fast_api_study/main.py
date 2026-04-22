@@ -5,7 +5,7 @@ from enum import Enum
 
 # 启动命令 uvicorn main:app --reload
     # 启动main.py中的app程序 
-    # --reload 使用热加载的方式
+    # --reload 使用热加载的方式 每次改完代码 自己重启验证 不对会有报错
 
 # 1 初始化应用
 app = FastAPI(title="first_fast_api")
