@@ -97,4 +97,15 @@ async def annotatedTest2(userName: Annotated[str | None, Query(min_length=3, max
 # ):
 #     return userName    
 
-# 
+# Field使用方式
+    # Field函数中的第一个参数永远代表default 即默认值 可以省略不写
+    # Literal 中文翻译成字面量 传参必须严格匹配里面的内容
+class FilterParams(BaseModel):
+    limit : int = Field(100, gt=10, le=100) 
+    offset: int = Field(0, ge=0),
+    order_by: Literal["create_tiem", "update_time"] = "create_tiem"
+    tags: list[str] = []
+
+@app.post(path="/testFilerParams")
+async def testFilerParams(request:Annotated[FilterParams, Query()]):
+    return "ok"
