@@ -49,10 +49,13 @@ async def run_agent(request : AgentRequest):
 async def testEnum(model_name : ModelRequest):
     if model_name is ModelRequest.qWen:
         return "modelName is Qwen"
-    elif model_name is ModelRequest.glm:
-        return "modelName is glm"
+    # elif model_name is ModelRequest.glm:
+    #     return "modelName is glm"
     elif model_name is ModelRequest.tongyi:
         return "modelName is tongyi"
+    # 直接使用枚举.value方式 也可以
+    elif model_name.value == "Glm":
+        return "modelName is glm"
     
     return "unknow"
     
