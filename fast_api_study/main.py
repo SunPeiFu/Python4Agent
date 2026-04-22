@@ -1,7 +1,9 @@
 from typing import Optional, List
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 from enum import Enum
+from typing import Annotated
+
 
 # 启动命令 uvicorn main:app --reload
     # 启动main.py中的app程序 
@@ -10,7 +12,7 @@ from enum import Enum
 # 1 初始化应用
 app = FastAPI(title="first_fast_api")
 
-# 2 定义出入参
+# 2 BaseModel -> 校验参数 类型转换 自动生成文档deng gongneng 
     #  Optioanl代表一个可选的参数 不传的话默认值是0.7 其他参数不传则直接报错422
 class AgentRequest(BaseModel):
     task_id : str
@@ -18,7 +20,7 @@ class AgentRequest(BaseModel):
     temperature : Optional[float] = 0.7 # Optioanl代表一个可选的参数 不传的话默认值是0.7 其他参数不传则直接报错422
     tools : List[str] = []
 
-class AgentResposne(BaseModel): # BaseModel所用 校验参数 类型转换 自动生成文档
+class AgentResposne(BaseModel): 
     task_id : str
     status : str
     output : str
@@ -58,10 +60,24 @@ async def testEnum(model_name : ModelRequest):
         return "modelName is glm"
     
     return "unknow"
+
+@app.post(path = "/testDefaultValue")
+async def testDefaultValue(item_id: str = None ,
+                           shor : bool = False):   
+
+    if shor:
+        return f"进入True逻辑 当前输入bool是{bool}" 
     
+    return f"进入兜底逻辑 当前输入bool是{bool}"
 
 
 # 健康检查
 @app.get(path="/health")
 def health_check():
     return {"status": "healthy"}
+
+# Annotated注解使用
+@app.get(path="/annotatedTest")
+async def read_items(q: Annotated[str | None, Query(max_length=50)] = None):
+    return q
+
