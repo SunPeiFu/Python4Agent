@@ -1,8 +1,8 @@
 from typing import Optional, List
-from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, Query, Path
+from pydantic import BaseModel, Field
 from enum import Enum
-from typing import Annotated
+from typing import Annotated, Literal
 
 
 # 启动命令 uvicorn main:app --reload
@@ -76,8 +76,25 @@ async def testDefaultValue(item_id: str = None ,
 def health_check():
     return {"status": "healthy"}
 
-# Annotated注解使用
+# Annotated注解使用 更加结构化
 @app.get(path="/annotatedTest")
-async def read_items(q: Annotated[str | None, Query(max_length=50)] = None):
+async def annotatedTest(q: Annotated[str | None, Query(max_length=50)] = None):
     return q
+@app.get(path="/annotatedTest2")
+async def annotatedTest2(userName: Annotated[str | None, Query(min_length=3, max_length=20)]):
+    return userName
 
+# Path和Query和Body的区别
+    # Path用来校验Url
+    # Query用来校验Url ? 后面的参数kv参数
+    # Body用来校验请求体的参数
+    # tips 如果是get请求 当传入一个对象时 是用Query校验 如果是Post请求 则使用Body校验(前者当成url?后的kv处理 后者类似requestBody 和SpirngBoot一样)
+# @app.get(path="/testPathAndQueryAndBody{id}")
+# async def testPathAndQueryAndBody(
+#     id : Annotated[int | None, Path(title="url上的数值",ge=10)] ,# id必须大于10
+#     userName: Annotated[str | None, Query(min_length=5, max_length=15)],
+#     request : Annotated[AgentRequest | None, ]
+# ):
+#     return userName    
+
+# 
