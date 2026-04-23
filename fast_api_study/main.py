@@ -262,10 +262,15 @@ def testmodelDump(user: UserBase):
     print(f"model_dump过后的user信息:{user_model_dump}")
 
     # 解包** 必须配合 () {} 使用
-    unpack = UserInDB(**user_model_dump, hashed_password = "123")
+    unpack = UserInDB(**user_model_dump, hashed_password = "123") # 此处解包后会继续拼接hashed_password
     print(f"unpack后的内容是: {unpack}")
 
     return unpack   
+"""
+原始的user信息:username='123' full_name='456'
+model_dump过后的user信息:{'username': '123', 'full_name': '456'}
+unpack后的内容是: username='123' full_name='456' hashed_password='123'
+"""
 
 
 # q: str | None = None 和 q: str | None区别
