@@ -1,5 +1,5 @@
 from typing import Optional, List
-from fastapi import FastAPI, HTTPException, Query, Path
+from fastapi import FastAPI, HTTPException, Query, Path, Body
 from pydantic import BaseModel, Field
 from enum import Enum
 from typing import Annotated, Literal
@@ -89,13 +89,7 @@ async def annotatedTest2(userName: Annotated[str | None, Query(min_length=3, max
     # Query用来校验Url ? 后面的参数kv参数
     # Body用来校验请求体的参数
     # tips 如果是get请求 当传入一个对象时 是用Query校验 如果是Post请求 则使用Body校验(前者当成url?后的kv处理 后者类似requestBody 和SpirngBoot一样)
-# @app.get(path="/testPathAndQueryAndBody{id}")
-# async def testPathAndQueryAndBody(
-#     id : Annotated[int | None, Path(title="url上的数值",ge=10)] ,# id必须大于10
-#     userName: Annotated[str | None, Query(min_length=5, max_length=15)],
-#     request : Annotated[AgentRequest | None, ]
-# ):
-#     return userName    
+  
 
 # Field使用方式
     # Field函数中的第一个参数永远代表default 即默认值 可以省略不写
@@ -109,3 +103,48 @@ class FilterParams(BaseModel):
 @app.post(path="/testFilerParams")
 async def testFilerParams(request:Annotated[FilterParams, Query()]):
     return "ok"
+
+# Body方式接受传参
+class Item(BaseModel):
+    name : str
+    desc : str
+    price : float
+    tax : float = 0.00
+
+class User(BaseModel):
+    username: str
+    full_name: str | None = None
+
+@app.put(path="/item/detail/{item_id}")
+async def updateItemDetail(
+    # 此处两个实体对象
+    item_id : Annotated[int, Path(title="It's id", ge=0, le=100)],
+    q : str | None = None,
+    item : Item | None = None,
+    user : User | None = None,
+    level: Annotated[int, Body()] = 0 # 当声明Body时 level就在请求体中 所有Annotated声明的必须要有默认值
+):
+    return {"item_id": item_id, "item": item, "user" : user}
+"""
+fastapi会自动根据key进行映射
+curl -X 'PUT' \
+  'http://127.0.0.1:8000/item/detail/11' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "item": {
+    "name": "商品名字",
+    "desc": "string",
+    "price": 0,
+    "tax": 0
+  },
+  "user": {
+    "username": "用户名",
+    "full_name": "string"
+  },
+  "level": 0
+}'
+"""
+    
+    
+
