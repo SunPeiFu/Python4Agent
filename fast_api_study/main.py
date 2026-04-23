@@ -274,7 +274,7 @@ unpack后的内容是: username='123' full_name='456' hashed_password='123'
 
 
 # q: str | None = None 和 q: str | None区别
-    # 前者q是可选字符串参数 可以不传 不传默认值是None
-    # 后者q必传 默认值是None
+    # 前者q是可选字符串参数 可以不传 不传默认值是None 
+    # 后者q必传 默认值是None  "| 理解成或者是None" 不传就是None
     # | None决定能不能是空值
     # = None决定可不可以不传
