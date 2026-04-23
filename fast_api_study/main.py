@@ -1,6 +1,6 @@
 from typing import Optional, List
 from fastapi import FastAPI, HTTPException, Query, Path, Body
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, HttpUrl
 from enum import Enum
 from typing import Annotated, Literal
 
@@ -104,16 +104,21 @@ class FilterParams(BaseModel):
 async def testFilerParams(request:Annotated[FilterParams, Query()]):
     return "ok"
 
+class User(BaseModel):
+    username: str
+    full_name: str | None = None
+
 # Body方式接受传参
 class Item(BaseModel):
     name : str
     desc : str
     price : float
     tax : float = 0.00
+    url : HttpUrl = Field(title="属性的httpUrl") # 使用HttpUrl的属性
+    users: list[User] = list() # 对象嵌套方式
+    users: set[User] = set()
 
-class User(BaseModel):
-    username: str
-    full_name: str | None = None
+
 
 @app.put(path="/item/detail/{item_id}")
 async def updateItemDetail(
@@ -121,7 +126,12 @@ async def updateItemDetail(
     item_id : Annotated[int, Path(title="It's id", ge=0, le=100)],
     q : str | None = None,
     item : Item | None = None,
-    user : User | None = None,
+    user : Annotated[User, Body(examples=[{ # 增加examples
+                    "name": "Foo",
+                    "description": "A very nice Item",
+                    "price": 35.4,
+                    "tax": 3.2,
+                }])] = None,
     level: Annotated[int, Body()] = 0 # 当声明Body时 level就在请求体中 所有Annotated声明的必须要有默认值
 ):
     return {"item_id": item_id, "item": item, "user" : user}
@@ -172,6 +182,9 @@ false ->
   "tax": 0
 }
 """
-    
+# 测试接受一个普通字典
+@app.post(path="/testDict")
+async def testDict(user : dict[str, str]):
+    return f"接受到的对象是{user}"
     
 
