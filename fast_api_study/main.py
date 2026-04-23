@@ -145,6 +145,33 @@ curl -X 'PUT' \
   "level": 0
 }'
 """
+# Annotated中的Body(embed=True)]属性 决定了前端传参属性 true 前面会加一个key ,false 直接{}传参
+@app.put(path="/testEmbed")
+async def testEmbed(
+    # 此处两个实体对象
+    item_id : Annotated[int, Path(title="It's id", ge=0, le=100)],
+    q : str | None = None,
+    item : Annotated[Item, Body(embed=False)] = None
+):
+    return {"item_id": item_id, "item": item}
+"""
+true -> 
+{
+  "item": {
+    "name": "string",
+    "desc": "string",
+    "price": 0,
+    "tax": 0
+  }
+}
+false ->
+{
+  "name": "string",
+  "desc": "string",
+  "price": 0,
+  "tax": 0
+}
+"""
     
     
 
