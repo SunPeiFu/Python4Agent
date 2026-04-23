@@ -5,6 +5,19 @@ from enum import Enum
 from typing import Annotated, Literal, Any
 from datetime import datetime,date, time, timedelta
 
+# FastApi学习总结
+    # 提交方式 get post put delete 遵循RestFul方式
+    # Annotated作用于接口层 用于相关校验提取
+        # Query -> URL中获取参数映射
+        # Path  -> URL路径参数获取  url = {params}
+        # Body  -> Json请求体中获取参数
+        # Form  -> Form表单获取参数
+    # Field 作用于模型层校验
+    # 类比 
+        #@RequestParam @RequestBody 就是Annotated
+        #@Notnull 就是Field 
+    # 解包语法** 必须放在()或者{}里    
+
 
 
 # 启动命令 uvicorn main:app --reload
@@ -19,7 +32,8 @@ app = FastAPI(title="first_fast_api")
 class AgentRequest(BaseModel):
     task_id : str
     promt : str
-    temperature : Optional[float] = 0.7 # Optioanl代表一个可选的参数 不传的话默认值是0.7 其他参数不传则直接报错422
+    temperature : float | None  = 0.7 # 这两个等价 此种是主流写法
+    #temperature : Optional[float] = 0.7 # Optioanl代表一个可选的参数 不传的话默认值是0.7 其他参数不传则直接报错422
     tools : List[str] = []
 
 class AgentResposne(BaseModel): 
