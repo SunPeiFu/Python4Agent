@@ -64,7 +64,7 @@ async def testEnum(model_name : ModelRequest):
     return "unknow"
 
 @app.post(path = "/testDefaultValue")
-async def testDefaultValue(item_id: str = None ,
+async def testDefaultValue(item_id: str | None =  None ,
                            shor : bool = False):   
 
     if shor:
@@ -98,7 +98,7 @@ async def annotatedTest2(userName: Annotated[str | None, Query(min_length=3, max
     # Literal 中文翻译成字面量 传参必须严格匹配里面的内容
 class FilterParams(BaseModel):
     limit : int = Field(100, gt=10, le=100) 
-    offset: int = Field(0, ge=0),
+    offset: int = Field(0, ge=0)
     order_by: Literal["create_tiem", "update_time"] = "create_tiem"
     tags: list[str] = []
 
@@ -118,7 +118,7 @@ class Item(BaseModel):
     tax : float = 0.00
     url : HttpUrl = Field(title="属性的httpUrl") # 使用HttpUrl的属性
     users: list[User] = list() # 对象嵌套方式
-    users: set[User] = set()
+    users2: set[User] = set()
 
 
 
@@ -128,7 +128,7 @@ async def updateItemDetail(
     item_id : Annotated[int, Path(title="It's id", ge=0, le=100)],
     q : str | None = None,
     item : Item | None = None,
-    user : Annotated[User, Body(examples=[{ # 增加examples
+    user : Annotated[User | None , Body(examples=[{ # 增加examples
                     "name": "Foo",
                     "description": "A very nice Item",
                     "price": 35.4,
@@ -163,7 +163,7 @@ async def testEmbed(
     # 此处两个实体对象
     item_id : Annotated[int, Path(title="It's id", ge=0, le=100)],
     q : str | None = None,
-    item : Annotated[Item, Body(embed=False)] = None
+    item : Annotated[Item | None, Body(embed=False)] = None
 ):
     return {"item_id": item_id, "item": item}
 """
@@ -202,19 +202,77 @@ async def testCommonAttribute(
     return f"接收到的参数是start_date_time:{start_date_time} , end_date_time:{end_date_time}, dt:{dt}"
 
 # 使用Responsemodel
-class UserIn(BaseModel):
+class UserInA(BaseModel):
     username: str
     password: str
     email: EmailStr
     full_name: str | None = None
 
 
-class UserOut(BaseModel):
+class UserOutA(BaseModel):
     username: str
     email: EmailStr
     full_name: str | None = None
 
 # 使用response_model 限制返回的类型 只会返回预期对象内的数据结构
-@app.post("/user/", response_model=UserOut)
-async def create_user(user: UserIn) -> Any:
+@app.post("/user/", response_model=UserOutA)
+async def create_user(user: UserInA) -> Any:
     return user
+
+class UserBase(BaseModel):
+    username: str
+    email: EmailStr
+    full_name: str | None = None
+
+
+class UserIn(UserBase):
+    password: str
+
+
+class UserOut(UserBase):
+    # python关键字 表示什么都不做
+    pass 
+
+
+class UserInDB(UserBase):
+    hashed_password: str
+
+
+def fake_password_hasher(raw_password: str):
+    return "supersecret" + raw_password
+
+
+def fake_save_user(user_in: UserIn):
+    hashed_password = fake_password_hasher(user_in.password)
+    user_in_db = UserInDB(**user_in.model_dump(), hashed_password= hashed_password)
+    """
+        user_in.model_dump() -> 对象转字典
+        解包 -> 变成key = value结构
+        一大堆key = value 在拼接 hashed_password= hashed_password 
+        传入UserInDB中
+    """
+    
+    print("User saved! ..not really")
+    return user_in_db
+
+@app.post(path = "testmodelDump")
+def testmodelDump(user: UserBase):
+
+    print(f"原始的user信息:{user}")
+
+    # 对象转字典
+    user_model_dump = user.model_dump()
+    print(f"model_dump过后的user信息:{user_model_dump}")
+
+    # 解包** 必须配合 () {} 使用
+    unpack = UserInDB(**user_model_dump)
+    print(f"unpack后的内容是: {unpack}")
+
+    return unpack
+
+
+# q: str | None = None 和 q: str | None区别
+    # 前者q是可选字符串参数 可以不传 不传默认值是None
+    # 后者q必传 默认值是None
+    # | None决定能不能是空值
+    # = None决定可不可以不传
