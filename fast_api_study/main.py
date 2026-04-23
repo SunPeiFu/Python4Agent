@@ -1,8 +1,10 @@
 from typing import Optional, List
 from fastapi import FastAPI, HTTPException, Query, Path, Body
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, EmailStr
 from enum import Enum
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Any
+from datetime import datetime,date, time, timedelta
+
 
 
 # 启动命令 uvicorn main:app --reload
@@ -187,4 +189,32 @@ false ->
 async def testDict(user : dict[str, str]):
     return f"接受到的对象是{user}"
     
+# 对象中封装常用属性
+@app.post(path = "/testCommonAttribute")
+async def testCommonAttribute(
+    item_id : int,
+    start_date_time : Annotated[datetime, Body()],
+    end_date_time : Annotated[datetime, Body()],
+    dt : Annotated[date, Body()],
+    time : Annotated[time, Body()],
+    delta : Annotated[timedelta, Body()],
+):
+    return f"接收到的参数是start_date_time:{start_date_time} , end_date_time:{end_date_time}, dt:{dt}"
 
+# 使用Responsemodel
+class UserIn(BaseModel):
+    username: str
+    password: str
+    email: EmailStr
+    full_name: str | None = None
+
+
+class UserOut(BaseModel):
+    username: str
+    email: EmailStr
+    full_name: str | None = None
+
+# 使用response_model 限制返回的类型 只会返回预期对象内的数据结构
+@app.post("/user/", response_model=UserOut)
+async def create_user(user: UserIn) -> Any:
+    return user
