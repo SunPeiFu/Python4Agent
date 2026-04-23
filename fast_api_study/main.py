@@ -1,5 +1,5 @@
 from typing import Optional, List
-from fastapi import FastAPI, HTTPException, Query, Path, Body
+from fastapi import FastAPI, HTTPException, Query, Path, Body, status, Form
 from pydantic import BaseModel, Field, HttpUrl
 from enum import Enum
 from typing import Annotated, Literal, Any
@@ -252,7 +252,7 @@ def fake_save_user(user_in: UserIn):
     print("User saved! ..not really")
     return user_in_db
 
-@app.post(path = "/testmodelDump")
+@app.post(path = "/testmodelDump", status_code=status.HTTP_201_CREATED)
 def testmodelDump(user: UserBase):
 
     print(f"原始的user信息:{user}")
@@ -272,9 +272,16 @@ model_dump过后的user信息:{'username': '123', 'full_name': '456'}
 unpack后的内容是: username='123' full_name='456' hashed_password='123'
 """
 
-
 # q: str | None = None 和 q: str | None区别
     # 前者q是可选字符串参数 可以不传 不传默认值是None 
     # 后者q必传 默认值是None  "| 理解成或者是None" 不传就是None
     # | None决定能不能是空值
     # = None决定可不可以不传
+
+# 使用form username&password会从表单提取数据
+@app.post("/login/")
+async def login(
+    username : Annotated[str, Form()],
+    password : Annotated[str, Form()]
+):
+    return {}
