@@ -1,6 +1,6 @@
 from typing import Optional, List
 from fastapi import FastAPI, HTTPException, Query, Path, Body
-from pydantic import BaseModel, Field, HttpUrl, EmailStr
+from pydantic import BaseModel, Field, HttpUrl
 from enum import Enum
 from typing import Annotated, Literal, Any
 from datetime import datetime,date, time, timedelta
@@ -205,13 +205,11 @@ async def testCommonAttribute(
 class UserInA(BaseModel):
     username: str
     password: str
-    email: EmailStr
     full_name: str | None = None
 
 
 class UserOutA(BaseModel):
     username: str
-    email: EmailStr
     full_name: str | None = None
 
 # 使用response_model 限制返回的类型 只会返回预期对象内的数据结构
@@ -221,7 +219,6 @@ async def create_user(user: UserInA) -> Any:
 
 class UserBase(BaseModel):
     username: str
-    email: EmailStr
     full_name: str | None = None
 
 
@@ -255,7 +252,7 @@ def fake_save_user(user_in: UserIn):
     print("User saved! ..not really")
     return user_in_db
 
-@app.post(path = "testmodelDump")
+@app.post(path = "/testmodelDump")
 def testmodelDump(user: UserBase):
 
     print(f"原始的user信息:{user}")
@@ -265,10 +262,10 @@ def testmodelDump(user: UserBase):
     print(f"model_dump过后的user信息:{user_model_dump}")
 
     # 解包** 必须配合 () {} 使用
-    unpack = UserInDB(**user_model_dump)
+    unpack = UserInDB(**user_model_dump, hashed_password = "123")
     print(f"unpack后的内容是: {unpack}")
 
-    return unpack
+    return unpack   
 
 
 # q: str | None = None 和 q: str | None区别
